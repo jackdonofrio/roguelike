@@ -53,7 +53,9 @@ bool rooms_overlap(room* r1, room* r2);
 char* map_gen(room** rooms);
 void draw_room(room* r, char* map);
 void set_player_spawn(room** rooms, player* p);
-void join_rooms(room* r1, room* r2);
+void join_rooms(room* r1, room* r2, char* map);
+void find_path(room* from, room* to, int r1, int c1, int r2, int c2, char* map);
+bool within_room(room* r, int row, int col);
 
 int main()
 {
@@ -113,20 +115,112 @@ char* map_gen(room** rooms)
 
     // now generate pathways between them
     for (int i = 0; i < ROOM_COUNT - 1; i++) {
-        join_rooms(rooms[i], rooms[i + 1]);
+        join_rooms(rooms[i], rooms[i + 1], map);
     }
     
-
-
     return map;
 }
 
-
-
-void join_rooms(room* r1, room* r2)
+bool within_room(room* r, int row, int col)
 {
+    return row >= r->corner_row &&
+            row <= (r->corner_row + r->height)
+            && col >= r->corner_col &&
+            col <= (r->corner_col + r->width);
+}
+
+void join_rooms(room* room1, room* room2, char* map)
+{
+    int r1, c1, r2, c2;
+
     
 
+    // pick r1, c1 on wall of room1
+    r1 = room1->corner_row + 1;
+    c1 = room1->corner_col + (rand() % 2) * room1->width;
+    // c1 = room1->corner_col;
+    // and r2, c2 on wall of room2
+    r2 = room2->corner_row + 2;
+    c2 = room2->corner_col;// + (rand() % 2) * room2->width;
+    find_path(room1, room2, r1, c1, r2, c2, map);
+
+}
+
+void find_path(room* from, room* to, int r1, int c1, int r2, int c2, char* map)
+{
+    // prefer to move closer - but if not, try otherwise
+    char current = get_map_char(r1, c1, map);
+    if (within_room(from, r1, c1) && current == '|' || current == '-') {
+        set_map_char(r1, c1, map, HALLWAY);
+    }
+
+    if (get_map_char(r1, c1 - 1, map) == '|' && within_room(to, r1, c1 - 1)) {
+        set_map_char(r1, c1 - 1, map, HALLWAY);
+        return;
+    } else if (get_map_char(r1, c1 + 1, map) == '|' && within_room(to, r1, c1 + 1)) {
+        set_map_char(r1, c1 + 1, map, HALLWAY);
+        return;
+    } else if (get_map_char(r1 - 1, c1, map) == '-' && within_room(to, r1 - 1, c1)) {
+        set_map_char(r1 - 1, c1, map, HALLWAY);
+        return;
+    } else if (get_map_char(r1 + 1, c1, map) == '-' && within_room(to, r1 + 1, c1)) {
+        set_map_char(r1 + 1, c1, map, HALLWAY);
+        return;
+    }
+
+    // if (get_map_char(r1, c1 - 1, map) == '|' && !within_room(from, r1, c1 - 1)) {
+    //     set_map_char(r1, c1 - 1, map, HALLWAY);
+    //     // return;
+    // } else if (get_map_char(r1, c1 + 1, map) == '|' && !within_room(from, r1, c1 + 1)) {
+    //     set_map_char(r1, c1 + 1, map, HALLWAY);
+    //     // return;
+    // } else if (get_map_char(r1 - 1, c1, map) == '-' && !within_room(from, r1 - 1, c1)) {
+    //     set_map_char(r1 - 1, c1, map, HALLWAY);
+    //     // return;
+    // } else if (get_map_char(r1 + 1, c1, map) == '-' && !within_room(from, r1 + 1, c1)) {
+    //     set_map_char(r1 + 1, c1, map, HALLWAY);
+    //     // return;
+    // }
+
+    bool left_open = get_map_char(r1, c1 + 1, map) == ' ';
+    bool right_open = get_map_char(r1, c1 - 1, map) == ' ';
+    bool up_open = get_map_char(r1 + 1, c1, map) == ' ';
+    bool down_open = get_map_char(r1 - 1, c1, map) == ' ';
+
+    if (r1 < r2 && up_open) {
+        set_map_char(r1 + 1, c1, map, HALLWAY);
+        find_path(from, to, r1 + 1, c1, r2, c2, map);
+    } 
+    else if (r1 > r2 && down_open) {
+        set_map_char(r1 - 1, c1, map, HALLWAY);
+        find_path(from, to, r1 - 1, c1, r2, c2, map);
+    }
+    else if (c1 > c2 && right_open) {
+        set_map_char(r1, c1 - 1, map, HALLWAY);
+        find_path(from, to, r1, c1 - 1, r2, c2, map);
+    } 
+    else if (c1 < c2 && left_open) {
+        set_map_char(r1, c1 + 1, map, HALLWAY);
+        find_path(from, to, r1, c1 + 1, r2, c2, map);
+    } 
+    // if we can't get closer, at least move somewhere
+    else if (up_open) { // also add option to travel existing paths
+        set_map_char(r1 + 1, c1, map, HALLWAY);
+        find_path(from, to, r1 + 1, c1, r2, c2, map);
+    } 
+    else if (down_open) {
+        set_map_char(r1 - 1, c1, map, HALLWAY);
+        find_path(from, to, r1 - 1, c1, r2, c2, map);
+    } 
+    else if (right_open) {
+        set_map_char(r1, c1 - 1, map, HALLWAY);
+        find_path(from, to, r1, c1 - 1, r2, c2, map);
+    } 
+    else if (left_open) {
+        set_map_char(r1, c1 + 1, map, HALLWAY);
+        find_path(from, to, r1, c1 + 1, r2, c2, map);
+    }
+    
 }
 
 
@@ -175,7 +269,7 @@ room* room_gen()
     printf("genning room\n");
     const int min_height = 5;
     const int min_width = 7;
-    const int max_height = 18;
+    const int max_height = 12;
     const int max_width = 15;
 
     room* r = malloc(sizeof(room));
@@ -210,10 +304,10 @@ bool rooms_overlap(room* r1, room* r2)
         exit(1);
         return false;
     }
-    return (r1->corner_col < (r2->corner_col + r2->width)) &&
-           (r2->corner_col < (r1->corner_col + r1->width)) &&
-           (r1->corner_row < (r2->corner_row + r2->height)) &&
-           (r2->corner_row < (r1->corner_row + r1->height));
+    return (r1->corner_col <= (r2->corner_col + r2->width)) &&
+           (r2->corner_col <= (r1->corner_col + r1->width)) &&
+           (r1->corner_row <= (r2->corner_row + r2->height)) &&
+           (r2->corner_row <= (r1->corner_row + r1->height));
 }
 
 // return whether a given room overlaps with any other room
@@ -338,7 +432,7 @@ void setup_ncurses()
     curs_set(0);
     // change white to gray
     init_color(COLOR_WHITE, 700, 700, 700);
-    init_pair('#', COLOR_YELLOW, COLOR_BLACK);
+    init_pair(HALLWAY, COLOR_YELLOW, COLOR_BLACK);
     init_pair(0, COLOR_WHITE, COLOR_BLACK);
     init_pair(1, COLOR_CYAN, COLOR_BLACK);
     init_pair(2, COLOR_GREEN, COLOR_BLACK);
