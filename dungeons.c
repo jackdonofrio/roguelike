@@ -2,6 +2,8 @@
 
 +JMJ+
 
+TODO - fix procedural generation of paths
+    - use bfs perhaps
 
 proc gen adapted from:
 http://www.roguebasin.com/index.php?title=A_Simple_Dungeon_Generator_for_Python_2_or_3
@@ -11,16 +13,20 @@ http://www.roguebasin.com/index.php?title=A_Simple_Dungeon_Generator_for_Python_
 #include <stdlib.h>
 #include <time.h>
 #include <stdbool.h>
+#include <string.h>
 #include <ncurses.h>
 
 // note - hard-coded dims based on input file
 #define MAP_WIDTH 64
-#define MAP_HEIGHT 21
-#define ROOM_COUNT 3
+#define MAP_HEIGHT 28
+#define ROOM_COUNT 7
 
 #define PLAYER_SYMBOL '@'
 #define OPEN_SPACE '.'
 #define HALLWAY '#'
+#define STAIR '%'
+
+
 
 typedef struct player
 {
@@ -42,9 +48,9 @@ char* load_map(char* filename);
 void setup_ncurses();
 void write_map_curse(char* map);
 void curse_put(int row, int col, char c, int color);
-void handle_keypress(player* player_ptr, char key, char* map);
-void handle_walk_key(player* player_ptr, char* map, int row_change, int col_change);
-bool can_step(char* map, int row, int column);
+char handle_keypress(player* player_ptr, char key, char* map);
+char handle_walk_key(player* player_ptr, char* map, int row_change, int col_change);
+char can_step(char* map, int row, int column);
 player* player_init(int start_row, int start_col);
 room** rooms_gen();
 room* room_gen();
@@ -54,8 +60,14 @@ char* map_gen(room** rooms);
 void draw_room(room* r, char* map);
 void set_player_spawn(room** rooms, player* p);
 void join_rooms(room* r1, room* r2, char* map);
-void find_path(room* from, room* to, int r1, int c1, int r2, int c2, char* map);
 bool within_room(room* r, int row, int col);
+void set_stair_spawn(room** rooms, char* map);
+void clean_rooms(room** rooms);
+static inline int min(int a, int b);
+static inline int max(int a, int b);
+void dig_vertical_tunnel(int r1, int r2, int c, char* map);
+void dig_horizontal_tunnel(int r, int c1, int c2, char* map);
+char random_wall();
 
 int main()
 {
@@ -68,18 +80,26 @@ int main()
         rooms = rooms_gen();
         map = map_gen(rooms); // map_gen(rooms);
         set_player_spawn(rooms, player_ptr);
+        
     }
     else {
         map = load_map("test.txt");  
     }
     setup_ncurses();
     write_map_curse(map);
-    curse_put(player_ptr->row, player_ptr->column, PLAYER_SYMBOL, 2);
+    curse_put(player_ptr->row, player_ptr->column, PLAYER_SYMBOL, '?');
     
 
     char key;
     while ((key = getch()) != 'q') {
-        handle_keypress(player_ptr, key, map);        
+        if (handle_keypress(player_ptr, key, map) == STAIR) {
+            clean_rooms(rooms);
+            free(map);
+            srand(time(NULL));
+            rooms = rooms_gen();
+            map = map_gen(rooms); // map_gen(rooms);
+            set_player_spawn(rooms, player_ptr);
+        }        
         // update map and player location
         write_map_curse(map);
 
@@ -87,7 +107,7 @@ int main()
         //     room* r = rooms[i];
         //     curse_put(r->corner_row, r->corner_col, '*', 3);
         // }
-        curse_put(player_ptr->row, player_ptr->column, PLAYER_SYMBOL, 2);
+        curse_put(player_ptr->row, player_ptr->column, PLAYER_SYMBOL, '?');
     }
     free(map);
     free(player_ptr);
@@ -102,12 +122,50 @@ int main()
 }
 
 
+void clean_rooms(room** rooms)
+{
+    for (int i = 0; i < ROOM_COUNT; i++) {
+            free(rooms[i]);
+        }
+    free(rooms);
+}
+
+char random_wall()
+{
+    switch (rand() % 11) {
+            case 0:
+                return '(';
+            case 1:
+                return '+';               
+            case 2:
+                return '$';             
+            case 3:
+                return '!';               
+            case 4:
+                return '>';            
+            case 5:
+                return '&';
+            case 6:
+                return ';';                
+            case 7:
+                return '=';          
+            case 8:
+                return '-';          
+            case 9:
+                return '}';
+            case 10:
+                return '[';
+        }
+}
+
+
 // given valid rooms, draw map
 char* map_gen(room** rooms)
 {
     char* map = calloc(MAP_HEIGHT * MAP_WIDTH, sizeof(char));
     for (int i = 0; i < MAP_HEIGHT * MAP_WIDTH; i++) {
-        map[i] = ' ';
+        map[i] = random_wall();
+        
     }
     for (int r = 0; r < ROOM_COUNT; r++) {
         draw_room(rooms[r], map);
@@ -117,6 +175,9 @@ char* map_gen(room** rooms)
     for (int i = 0; i < ROOM_COUNT - 1; i++) {
         join_rooms(rooms[i], rooms[i + 1], map);
     }
+
+    // pick stair location
+    set_stair_spawn(rooms, map);
     
     return map;
 }
@@ -134,141 +195,70 @@ void join_rooms(room* room1, room* room2, char* map)
     int r1, c1, r2, c2;
 
     
-
+    srand(time(NULL));
     // pick r1, c1 on wall of room1
-    r1 = room1->corner_row + 1;
-    c1 = room1->corner_col + (rand() % 2) * room1->width;
+    r1 = room1->corner_row + room1->height / 2;
+    c1 = room1->corner_col; //+ (rand() % 2) * (room1->width - 1);
+
     // c1 = room1->corner_col;
     // and r2, c2 on wall of room2
     r2 = room2->corner_row + 2;
     c2 = room2->corner_col;// + (rand() % 2) * room2->width;
-    find_path(room1, room2, r1, c1, r2, c2, map);
+    // vertically or horizontally first ?
+    if (rand() % 2) {
+        dig_vertical_tunnel(r1, r2, c1, map);
+        dig_horizontal_tunnel(r2, c1, c2, map);
+    } else {
+        dig_vertical_tunnel(r1, r2, c2, map);
+        dig_horizontal_tunnel(r1, c1, c2, map);
+    }
 
 }
 
-void find_path(room* from, room* to, int r1, int c1, int r2, int c2, char* map)
+static inline int min(int a, int b)
 {
-    // prefer to move closer - but if not, try otherwise
-    char current = get_map_char(r1, c1, map);
-    if (within_room(from, r1, c1) && current == '|' || current == '-') {
-        set_map_char(r1, c1, map, HALLWAY);
-    }
-
-    if (get_map_char(r1, c1 - 1, map) == '|' && within_room(to, r1, c1 - 1)) {
-        set_map_char(r1, c1 - 1, map, HALLWAY);
-        return;
-    } else if (get_map_char(r1, c1 + 1, map) == '|' && within_room(to, r1, c1 + 1)) {
-        set_map_char(r1, c1 + 1, map, HALLWAY);
-        return;
-    } else if (get_map_char(r1 - 1, c1, map) == '-' && within_room(to, r1 - 1, c1)) {
-        set_map_char(r1 - 1, c1, map, HALLWAY);
-        return;
-    } else if (get_map_char(r1 + 1, c1, map) == '-' && within_room(to, r1 + 1, c1)) {
-        set_map_char(r1 + 1, c1, map, HALLWAY);
-        return;
-    }
-
-    // if (get_map_char(r1, c1 - 1, map) == '|' && !within_room(from, r1, c1 - 1)) {
-    //     set_map_char(r1, c1 - 1, map, HALLWAY);
-    //     // return;
-    // } else if (get_map_char(r1, c1 + 1, map) == '|' && !within_room(from, r1, c1 + 1)) {
-    //     set_map_char(r1, c1 + 1, map, HALLWAY);
-    //     // return;
-    // } else if (get_map_char(r1 - 1, c1, map) == '-' && !within_room(from, r1 - 1, c1)) {
-    //     set_map_char(r1 - 1, c1, map, HALLWAY);
-    //     // return;
-    // } else if (get_map_char(r1 + 1, c1, map) == '-' && !within_room(from, r1 + 1, c1)) {
-    //     set_map_char(r1 + 1, c1, map, HALLWAY);
-    //     // return;
-    // }
-
-    bool left_open = get_map_char(r1, c1 + 1, map) == ' ';
-    bool right_open = get_map_char(r1, c1 - 1, map) == ' ';
-    bool up_open = get_map_char(r1 + 1, c1, map) == ' ';
-    bool down_open = get_map_char(r1 - 1, c1, map) == ' ';
-
-    if (r1 < r2 && up_open) {
-        set_map_char(r1 + 1, c1, map, HALLWAY);
-        find_path(from, to, r1 + 1, c1, r2, c2, map);
-    } 
-    else if (r1 > r2 && down_open) {
-        set_map_char(r1 - 1, c1, map, HALLWAY);
-        find_path(from, to, r1 - 1, c1, r2, c2, map);
-    }
-    else if (c1 > c2 && right_open) {
-        set_map_char(r1, c1 - 1, map, HALLWAY);
-        find_path(from, to, r1, c1 - 1, r2, c2, map);
-    } 
-    else if (c1 < c2 && left_open) {
-        set_map_char(r1, c1 + 1, map, HALLWAY);
-        find_path(from, to, r1, c1 + 1, r2, c2, map);
-    } 
-    // if we can't get closer, at least move somewhere
-    else if (up_open) { // also add option to travel existing paths
-        set_map_char(r1 + 1, c1, map, HALLWAY);
-        find_path(from, to, r1 + 1, c1, r2, c2, map);
-    } 
-    else if (down_open) {
-        set_map_char(r1 - 1, c1, map, HALLWAY);
-        find_path(from, to, r1 - 1, c1, r2, c2, map);
-    } 
-    else if (right_open) {
-        set_map_char(r1, c1 - 1, map, HALLWAY);
-        find_path(from, to, r1, c1 - 1, r2, c2, map);
-    } 
-    else if (left_open) {
-        set_map_char(r1, c1 + 1, map, HALLWAY);
-        find_path(from, to, r1, c1 + 1, r2, c2, map);
-    }
-    
+    return a < b ? a : b;
 }
 
 
+static inline int max(int a, int b)
+{
+    return a > b ? a : b;
+}
+
+void dig_vertical_tunnel(int r1, int r2, int c, char* map)
+{
+    for (int row = min(r1, r2); row <= max(r1, r2); row++) {
+        set_map_char(row, c, map, OPEN_SPACE);
+    }
+}
+
+void dig_horizontal_tunnel(int r, int c1, int c2, char* map)
+{
+    for (int col = min(c1, c2); col <= max(c1, c2); col++) {
+        set_map_char(r, col, map, OPEN_SPACE);
+    }
+}
 
 
 
 void draw_room(room* r, char* map)
 {
-    // draw top border
     int right_edge = r->corner_col + r->width;
     int bottom_edge = r->corner_row + r->height;
-
-    // top left corner
-    set_map_char(r->corner_row, r->corner_col, map, '+');
-    // top border
-    for (int c = r->corner_col + 1; c < right_edge - 1; c++) {
-        set_map_char(r->corner_row, c, map, '-');
-    }
-    // top right corner
-    set_map_char(r->corner_row, right_edge - 1, map, '+');
     
-    for (int row = r->corner_row + 1; row < bottom_edge; row++) {
-        // draw left bar
-        set_map_char(row, r->corner_col, map, '|');
-
-        // fill interior
-        for (int col = r->corner_col + 1; col < right_edge - 1; col++) {
-            set_map_char(row, col, map, '.');
+    for (int row = r->corner_row; row < bottom_edge; row++) {
+        for (int col = r->corner_col; col < right_edge; col++) {
+            set_map_char(row, col, map, OPEN_SPACE);
         }
-        // draw right bar
-        set_map_char(row, right_edge - 1, map, '|');
     }
-
-    // bottom left corner
-    set_map_char(bottom_edge, r->corner_col, map, '+');
-    // draw bottom border
-    for (int c = r->corner_col + 1; c < right_edge - 1; c++) {
-        set_map_char(bottom_edge, c, map, '-');
-    }
-    // bottom right corner
-    set_map_char(bottom_edge, right_edge - 1, map, '+');
 }
 
 room* room_gen()
 {
-    printf("genning room\n");
-    const int min_height = 5;
-    const int min_width = 7;
+    // printf("genning room\n");
+    const int min_height = 4;
+    const int min_width = 4;
     const int max_height = 12;
     const int max_width = 15;
 
@@ -296,6 +286,17 @@ void set_player_spawn(room** rooms, player* p)
     p->column = rand() % (right - 2 - r->corner_col) + r->corner_col + 1;
 
 }
+
+void set_stair_spawn(room** rooms, char* map)
+{
+    room* r = rooms[rand() % ROOM_COUNT];
+    int right = r->corner_col + r->width;
+    int bottom = r->corner_row + r->height;
+    int row = rand() % (bottom - 1 - r->corner_row) + r->corner_row + 1;
+    int column = rand() % (right - 2 - r->corner_col) + r->corner_col + 1;
+    set_map_char(row, column, map, STAIR);
+}
+
 
 bool rooms_overlap(room* r1, room* r2)
 {
@@ -339,35 +340,35 @@ room** rooms_gen()
     return rooms;
 }
 
-void handle_keypress(player* player_ptr, char key, char* map)
+char handle_keypress(player* player_ptr, char key, char* map)
 {
     char map_char;
     switch (key) {
         case 'q':
             break;
         case 'w':
-            handle_walk_key(player_ptr, map, -1, 0);
-            break;
+            return handle_walk_key(player_ptr, map, -1, 0);
         case 'a':
-            handle_walk_key(player_ptr, map, 0, -1);
-            break;
+            return handle_walk_key(player_ptr, map, 0, -1);
         case 's':
-            handle_walk_key(player_ptr, map, 1, 0);
-            break;
+            return handle_walk_key(player_ptr, map, 1, 0);
         case 'd':
-            handle_walk_key(player_ptr, map, 0, 1);
-            break;
+            return handle_walk_key(player_ptr, map, 0, 1);
         }
 }
 
-void handle_walk_key(player* player_ptr, char* map, int row_change, int col_change)
+// returns code based on what was stepped on
+char handle_walk_key(player* player_ptr, char* map, int row_change, int col_change)
 {
     int new_row = player_ptr->row + row_change;
     int new_col = player_ptr->column + col_change;
-    if (can_step(map, new_row, new_col)) {
+    char c = can_step(map, new_row, new_col);
+    if (c) {
         player_ptr->row = new_row;
         player_ptr->column = new_col;
+        return c;
     }
+    return 0;
 }
 
 player* player_init(int start_row, int start_column)
@@ -388,10 +389,16 @@ player* player_init(int start_row, int start_column)
     return p;
 }
 
-bool can_step(char* map, int row, int column)
+char can_step(char* map, int row, int column)
 {
+    if (row < 0 || row >= MAP_HEIGHT || column < 0 || column >= MAP_WIDTH) {
+        return 0;
+    }
     char map_char = get_map_char(row, column, map);
-    return map_char == OPEN_SPACE || map_char == HALLWAY;
+    if (map_char == OPEN_SPACE || map_char == HALLWAY || map_char == STAIR) {
+        return map_char;
+    }
+    return 0;
 }
 
 char get_map_char(int row, int col, char* map)
@@ -458,8 +465,14 @@ void write_map_curse(char* map)
                 case '.':
                     curse_put(row, column, c, 0);
                     break;
-                default:
+                case HALLWAY:
+                    curse_put(row, column, c, 4);
+                    break;
+                case STAIR:
                     curse_put(row, column, c, 1);
+                    break;
+                default:
+                    curse_put(row, column, c, 2);
                     break;
             }
         }
