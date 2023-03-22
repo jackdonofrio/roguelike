@@ -1,5 +1,9 @@
-dungeons:
-	gcc dungeons.c -o dungeons -lcurses
+
+OBJS = map.o
+
+
+dungeons: $(OBJS)
+	gcc dungeons.c $^ -o $@ -lcurses
 
 .PHONY: clean test
 
