@@ -8,11 +8,12 @@ including room generation
 
 #define MAP_WIDTH 64
 #define MAP_HEIGHT 28
-#define ROOM_COUNT 7
+#define ROOM_COUNT 10
 
 // map symbols
 #define PLAYER_SYMBOL '@'
-#define OPEN_SPACE '.'
+#define WALL '#'
+#define OPEN_SPACE ' '
 #define STAIR '%'
 
 // useful macros
@@ -26,7 +27,6 @@ typedef struct room {
     int corner_row; // left top corner
     int corner_col; // left top corner
 } room;
-
 
 
 char* load_map(char* filename);
@@ -45,5 +45,10 @@ void set_stair_spawn(room** rooms, char* map);
 void delete_rooms(room** rooms);
 char random_wall();
 void draw_room(room* r, char* map);
-char* map_gen(room** rooms);
+char* map_gen(room** rooms, int level);
 char can_step(char* map, int row, int column);
+// void update_visibility(char* map, bool visible[], int row, int column);
+
+// bool is_visible(char* map, int player_row, int player_col, int row, int column);
+// bool visible_helper_straight(char* map, int player_row, int player_col, int row, int column);
+// bool can_see_through(char* map, int r, int c);

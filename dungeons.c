@@ -2,11 +2,6 @@
 
 +JMJ+
 
-TODO - fix procedural generation of paths
-    - use bfs perhaps
-
-proc gen adapted from:
-http://www.roguebasin.com/index.php?title=A_Simple_Dungeon_Generator_for_Python_2_or_3
 */
 
 #include <stdio.h>
@@ -15,13 +10,7 @@ http://www.roguebasin.com/index.php?title=A_Simple_Dungeon_Generator_for_Python_
 #include <stdbool.h>
 #include <string.h>
 #include <ncurses.h>
-
 #include "map.h"
-
-// note - hard-coded dims based on input file
-
-
-
 
 typedef struct player
 {
@@ -41,20 +30,16 @@ void set_player_spawn(room** rooms, player* p);
 
 int main()
 {
+    srand(time(NULL));
     player* player_ptr = player_init(2, 2);
     char* map;
     room** rooms;
-    bool use_proc_gen = true;
-    if (use_proc_gen) {
-        srand(time(NULL));
-        rooms = rooms_gen();
-        map = map_gen(rooms); // map_gen(rooms);
-        set_player_spawn(rooms, player_ptr);
+    int floor = 0;
+
+    rooms = rooms_gen();
+    map = map_gen(rooms, floor); 
+    set_player_spawn(rooms, player_ptr);
         
-    }
-    else {
-        map = load_map("test.txt");  
-    }
     setup_ncurses();
     write_map_curse(map);
     curse_put(player_ptr->row, player_ptr->column, PLAYER_SYMBOL, PLAYER_SYMBOL);
@@ -65,9 +50,9 @@ int main()
         if (handle_keypress(player_ptr, key, map) == STAIR) {
             delete_rooms(rooms);
             free(map);
-            srand(time(NULL));
+
             rooms = rooms_gen();
-            map = map_gen(rooms); // map_gen(rooms);
+            map = map_gen(rooms, ++floor); 
             set_player_spawn(rooms, player_ptr);
         }        
         // update map and player location
@@ -76,12 +61,11 @@ int main()
     }
     free(map);
     free(player_ptr);
-    if (use_proc_gen) {
-        for (int i = 0; i < ROOM_COUNT; i++) {
-            free(rooms[i]);
-        }
-        free(rooms);
+    for (int i = 0; i < ROOM_COUNT; i++) {
+        free(rooms[i]);
     }
+    free(rooms);
+    
     endwin();
     return 0;
 }
@@ -183,7 +167,7 @@ void write_map_curse(char* map)
         for (int column = 0; column < MAP_WIDTH; column++) {
             char c = get_map_char(row, column, map);
             switch (c) {
-                case '.':
+                case OPEN_SPACE:
                     curse_put(row, column, c, 0);
                     break;
                 case '#':
@@ -193,7 +177,7 @@ void write_map_curse(char* map)
                     curse_put(row, column, c, STAIR);
                     break;
                 default:
-                    curse_put(row, column, random_wall(), 5);
+                    curse_put(row, column, c, 0);
                     break;
             }
         }

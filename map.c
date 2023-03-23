@@ -10,6 +10,27 @@ Loads map from file
 - NOTE: make sure the file has dimensions equal to 
   MAP_WIDTH and MAP_HEIGHT, since they're not calculated here.
 */
+
+// char* load_gospel_of_john(char* filename)
+// {
+//     FILE* fp = fopen(filename, "r");
+//     if (fp == NULL) {
+//         fprintf(stderr, "error: unable to read file %s\n", filename);
+//         return NULL;
+//     }
+//     char c;
+//     int i = 0;
+//     const int charcount = 72200;
+//     char* raw = malloc(sizeof(char) * charcount);
+//     while ((c = fgetc(fp)) != EOF && i < charcount) {
+//         if (c != '\n' && ((int)c) != 13) {
+//             raw[i++] = c;
+//         }        
+//     }
+//     fclose(fp);
+//     return map;
+// }
+
 char* load_map(char* filename)
 {
     FILE* fp = fopen(filename, "r");
@@ -20,7 +41,7 @@ char* load_map(char* filename)
     char c;
     int i = 0;
     char* map = malloc(sizeof(char) * MAP_HEIGHT * MAP_WIDTH);
-    while ((c = fgetc(fp)) != EOF) {
+    while ((c = fgetc(fp)) != EOF && i < MAP_HEIGHT * MAP_WIDTH) {
         if (c != '\n' && ((int)c) != 13) {
             map[i++] = c;
         }        
@@ -124,13 +145,15 @@ void draw_room(room* r, char* map)
 }
 
 // given valid rooms, draw map
-char* map_gen(room** rooms)
+char* map_gen(room** rooms, int level)
 {
-    char* map = calloc(MAP_HEIGHT * MAP_WIDTH, sizeof(char));
+    char* map;
+    bool use_bible = true; // experimental
+    map = calloc(MAP_HEIGHT * MAP_WIDTH, sizeof(char));
     for (int i = 0; i < MAP_HEIGHT * MAP_WIDTH; i++) {
         map[i] = random_wall();
-        
     }
+
     for (int r = 0; r < ROOM_COUNT; r++) {
         draw_room(rooms[r], map);
     }
@@ -217,24 +240,125 @@ void dig_horizontal_tunnel(int r, int c1, int c2, char* map)
 
 char random_wall()
 {
-    int r = rand();
-     return r % 26 + (r % 2 ? 65 : 97);
-    // switch (rand() % 15) {
-    //         case 0: return '(';
-    //         case 1: return '+';               
-    //         case 2: return '$';             
-    //         case 3: return '!';               
-    //         case 4: return '>';            
-    //         case 5: return '&';
-    //         case 6: return ';';                
-    //         case 7: return '=';          
-    //         case 8: return '-';          
-    //         case 9: return '}';
-    //         case 10: return '[';
-    //         case 11: return '\"';
-    //         case 12: return '\'';
-    //         case 13: return ':';
-    //         case 14: return ',';
+    // int r = rand();
+    //  return r % 26 + (r % 1 ? 65 : 97);
+    switch (rand() % 15) {
+            case 0: return '(';
+            case 1: return '+';               
+            case 2: return '$';             
+            case 3: return '!';               
+            case 4: return '>';            
+            case 5: return '&';
+            case 6: return ';';                
+            case 7: return '=';          
+            case 8: return '-';          
+            case 9: return '}';
+            case 10: return '[';
+            case 11: return '\"';
+            case 12: return '\'';
+            case 13: return ':';
+            case 14: return ',';
 
-    //     }
+        }
 }
+
+// use bounding box
+// void update_visibility(char* map, bool visible[], int row, int column)
+// {
+//     const int radius = 10;
+//     for (int r = row - radius; r <= row + radius; r++) {
+//         for (int c = column - radius; c <= column + radius; c++) {
+//             int dr = r - row;
+//             int dc = c - column;
+//             if (dr * dr + dc * dc <= radius) {
+//                 visible[r * MAP_WIDTH + c] = true;
+//             }
+//         }
+//     }
+// }
+
+// // adapted from code I wrote for CS50 final project
+// bool is_visible(char* map, int player_row, int player_col, int row, int column)
+// {
+//     if (map == NULL || row < 0 || row >= MAP_HEIGHT
+//         || column < 0 || column >= MAP_WIDTH)
+//         return false;
+//     if (row == player_row && column == player_col)
+//         return true;
+
+//     double delta_row = player_row - row;
+//     double delta_col = player_col - column;
+//     if (delta_col == 0 || delta_row == 0) {
+//         return visible_helper_straight(map, player_row, player_col, row, column);
+//     }
+
+//     double current_row = 0;
+//     double current_col = 0;
+
+//     double dr_dc = delta_row / delta_col;
+//     double dc_dr = delta_col / delta_row;
+
+//     // case 1) point below, right of player
+//     if (row > player_row && column > player_col) { // dr_dc, dc_dr > 0
+//         current_row = player_row + dr_dc;
+//         for (current_col = player_col + 1; current_col < column && current_row >= 0
+//             && current_row < MAP_HEIGHT; current_col++) {
+//                 bool can_see_thru_intersection = intersection_helper(map, current_row, current_col, true);
+//             }
+//     }
+
+
+// }
+
+// bool intersection_helper(char* map, double current_row, double current_col, bool is_row_check)
+// {
+//     if (is_row_check) {
+//         if
+//     }
+// }
+
+
+
+// bool visible_helper_straight(char* map, int player_row, int player_col, int row, int column)
+// {
+//     double delta_row = player_row - row;
+//     double delta_col = player_col - column;
+//     if (delta_row == 0) {
+//         if (player_col < column) {
+//             for (int i = player_col + 1; i < column; i++) {
+//                 if (!can_see_through(map, row, i)) {
+//                     return false;
+//                 }
+//             }
+//         } else {
+//             for (int i = player_col - 1; i > column; i--) {
+//                 if (!can_see_through(map, row, i)) {
+//                     return false;
+//                 }
+//             }
+//         }
+//         return true;
+//     }
+//     if (delta_col == 0) {
+//         if (player_row < row) {
+//             for (int i = player_row + 1; i < row; i++) {
+//                 if (!can_see_through(map, i, column)) {
+//                     return false;
+//                 }
+//             }
+//         } else {
+//             for (int i = player_row - 1; i > row; i--) {
+//                 if (!can_see_through(map, i, column)) {
+//                     return false;
+//                 }
+//             }
+//         }
+//         return true;
+//     }
+//     return true;
+// }
+
+// bool can_see_through(char* map, int r, int c)
+// {
+//     return get_map_char(r, c, map) == OPEN_SPACE;
+// }
