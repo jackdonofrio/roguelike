@@ -14,3 +14,4 @@ test:
 
 clean:
 	rm dungeons
+	rm *.o
