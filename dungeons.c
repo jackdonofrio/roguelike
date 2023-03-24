@@ -19,6 +19,10 @@
 #define INVENTORY_TEXT_OFFSET 6
 #define HIGHLIGHT_TEXT_COLOR 40
 
+#define MAP_SCREEN 'M'
+#define INVENTORY_SCREEN 'I'
+#define EQUIPMENT_SCREEN 'E'
+#define STATS_SCREEN 'S'
 
 void setup_ncurses();
 void write_map_curse(char* map, int* item_grid);
@@ -28,9 +32,10 @@ void curse_clear_lines(int start_row, int inclusive_end_row, int column);
 char handle_map_keypress(player* player_ptr, char key, char* map, int* item_grid);
 char handle_walk_key(player* player_ptr, char* map, int row_change, int col_change, int* item_grid);
 void display_inventory(player* p, int inventory_cursor);
+void display_equipment(player* p);
+void display_center_box();
 void set_player_spawn(room** rooms, player* p);
 void set_item_spawns(room** rooms, int* item_grid, char* map);
-
 
 int main()
 {
@@ -41,7 +46,7 @@ int main()
     room** rooms;
     int* item_grid;
     int floor = 0;
-    bool in_inventory_screen = false;
+    char current_screen = MAP_SCREEN;
     int inventory_cursor = 0;
 
     rooms = rooms_gen();
@@ -53,16 +58,19 @@ int main()
     setup_ncurses();
     write_map_curse(map, item_grid);
     curse_put(player_ptr->row, player_ptr->column, PLAYER_SYMBOL, PLAYER_SYMBOL);
-    curse_print(MAP_HEIGHT, 0, "Inventory (E)", HIGHLIGHT_TEXT_COLOR);
-    
-   
+    mvprintw(MAP_HEIGHT, 0, "HP: %d", DEFAULT_MAX_HEALTH);
+    curse_print(MAP_HEIGHT + 1, 0, "Inventory (E)", HIGHLIGHT_TEXT_COLOR);
+    curse_print(MAP_HEIGHT + 1, 20, "Equipment (T)", HIGHLIGHT_TEXT_COLOR);
+    curse_print(MAP_HEIGHT + 1, 40, "Stats (R)", HIGHLIGHT_TEXT_COLOR);
 
     char key;
     while ((key = getch()) != 'q') {
-        if (key == 'e') {
-            in_inventory_screen = !in_inventory_screen;
-        } 
-        if (in_inventory_screen) {
+        if (key == 'e' || key == 'E') {
+            current_screen = (current_screen == INVENTORY_SCREEN) ? MAP_SCREEN : INVENTORY_SCREEN;
+        } else if (key == 't' || key == 'T') {
+            current_screen = (current_screen == EQUIPMENT_SCREEN) ? MAP_SCREEN : EQUIPMENT_SCREEN;
+        }
+        if (current_screen == INVENTORY_SCREEN) {
             int item_id = player_ptr->inventory->items[inventory_cursor];
             switch (key) {
                 case 'w': case 'W':
@@ -70,6 +78,13 @@ int main()
                     break;
                 case 's': case 'S':
                     inventory_cursor = min(player_ptr->inventory->current_size - 1, inventory_cursor + 1);
+                    break;
+                case 'z': case 'Z':
+                    if (item_grid[player_ptr->row * MAP_WIDTH + player_ptr->column] == NULL_ITEM_ID) {
+                        remove_item(player_ptr->inventory, inventory_cursor);
+                        item_grid[player_ptr->row * MAP_WIDTH + player_ptr->column] = item_id;
+                        inventory_cursor = max(min(inventory_cursor, player_ptr->inventory->current_size - 1), 0);
+                    }
                     break;
                 case 'f': case 'F':
                     switch (item_use_table[item_id]) {
@@ -81,27 +96,54 @@ int main()
                             inventory_cursor = max(min(inventory_cursor, player_ptr->inventory->current_size - 1), 0);
                             break;
                         case HELM:
-                            // TODO
+                            // swap old helm into inventory for new helm
+                            if (player_ptr->helm != NULL_ITEM_ID) {
+                                player_ptr->inventory->items[inventory_cursor] = player_ptr->helm;
+                            } else {
+                                remove_item(player_ptr->inventory, inventory_cursor);
+                            }
+                            player_ptr->helm = item_id;
                             break;
                         case BREASTPLATE:
-                            // TODO 
+                            if (player_ptr->breastplate != NULL_ITEM_ID) {
+                                player_ptr->inventory->items[inventory_cursor] = player_ptr->breastplate;
+                            } else {
+                                remove_item(player_ptr->inventory, inventory_cursor);
+                            }
+                            player_ptr->breastplate = item_id;
                             break;
                         case GREAVES:
-                            // TODO
+                            if (player_ptr->greaves != NULL_ITEM_ID) {
+                                player_ptr->inventory->items[inventory_cursor] = player_ptr->greaves;
+                            } else {
+                                remove_item(player_ptr->inventory, inventory_cursor);
+                            }
+                            player_ptr->greaves = item_id;
                             break;
                         case WEAPON:
-                            // TODO
+                            if (player_ptr->weapon != NULL_ITEM_ID) {
+                                player_ptr->inventory->items[inventory_cursor] = player_ptr->weapon;
+                            } else {
+                                remove_item(player_ptr->inventory, inventory_cursor);
+                            }
+                            player_ptr->weapon = item_id;
                             break;
                         case SHIELD:
-                            // TODO
+                            if (player_ptr->shield != NULL_ITEM_ID) {
+                                player_ptr->inventory->items[inventory_cursor] = player_ptr->shield;
+                            } else {
+                                remove_item(player_ptr->inventory, inventory_cursor);
+                            }
+                            player_ptr->shield = item_id;
                             break;
                     }
                     break;
             }
             display_inventory(player_ptr, inventory_cursor);
+        } else if (current_screen == EQUIPMENT_SCREEN) {
+            display_equipment(player_ptr);
         }
-        else {
-
+        else if (current_screen == MAP_SCREEN) {
             switch (handle_map_keypress(player_ptr, key, map, item_grid)) {
                 case STAIR:
                     delete_rooms(rooms);
@@ -119,7 +161,7 @@ int main()
             write_map_curse(map, item_grid);
             curse_put(player_ptr->row, player_ptr->column, PLAYER_SYMBOL, PLAYER_SYMBOL);
         }
-        curse_print(MAP_HEIGHT, 0, "Inventory (E)", HIGHLIGHT_TEXT_COLOR);
+        // curse_print(MAP_HEIGHT, 0, "Inventory (E)", HIGHLIGHT_TEXT_COLOR);
     }
     free(map);
     player_delete(player_ptr);
@@ -219,16 +261,13 @@ char handle_walk_key(player* player_ptr, char* map, int row_change, int col_chan
     return 0;
 }
 
-void display_inventory(player* p, int inventory_cursor)
+void display_center_box()
 {
-    // go to center
     int center_row = MAP_HEIGHT / 2;
     int q_row = center_row / 2;
     int center_column = MAP_WIDTH / 2;
     int q_col = center_column / 2;
     int r, c;
-
-    // display inventory menu frame
     curse_put(center_row - q_row, center_column - q_col, '+', INVENTORY_SCREEN_COLOR);
     for (c = center_column - q_col + 1; c < center_column + q_col - 1; c++) {
         curse_put(center_row - q_row, c, '-', INVENTORY_SCREEN_COLOR);
@@ -246,24 +285,64 @@ void display_inventory(player* p, int inventory_cursor)
     }
     curse_put(center_row + q_row, center_column - q_col, '+', INVENTORY_SCREEN_COLOR);
     curse_put(center_row + q_row, center_column + q_col - 1, '+', INVENTORY_SCREEN_COLOR);
+}
 
-    mvprintw(center_row - q_row + 1, center_column - INVENTORY_TEXT_OFFSET, "~Inventory~");
 
+void display_equipment(player* p)
+{
+    int center_row = MAP_HEIGHT / 2;
+    int q_row = center_row / 2;
+    int center_column = MAP_WIDTH / 2;
+    int q_col = center_column / 2;
+    display_center_box();
+    curse_print(center_row - q_row + 1, center_column - INVENTORY_TEXT_OFFSET,
+        "~Equipment~", INVENTORY_SCREEN_COLOR);
+    // display equipment    
+    mvprintw(center_row - q_row + 2, center_column - q_col + 2, 
+        "HELM:   %s", common_item_names[p->helm]);
+    mvprintw(center_row - q_row + 3, center_column - q_col + 2, 
+        "CHEST:  %s", common_item_names[p->breastplate]);
+    mvprintw(center_row - q_row + 4, center_column - q_col + 2, 
+        "LEGS:   %s", common_item_names[p->greaves]);
+    mvprintw(center_row - q_row + 5, center_column - q_col + 2, 
+        "WEAPON: %s", common_item_names[p->weapon]);
+    mvprintw(center_row - q_row + 6, center_column - q_col + 2, 
+        "SHIELD: %s", common_item_names[p->shield]);
+}
+
+void display_inventory(player* p, int inventory_cursor)
+{
+    // go to center
+    int center_row = MAP_HEIGHT / 2;
+    int q_row = center_row / 2;
+    int center_column = MAP_WIDTH / 2;
+    int q_col = center_column / 2;
+    int r, c;
+    
+    display_center_box();
+    curse_print(center_row - q_row + 1, center_column - INVENTORY_TEXT_OFFSET,
+        "~Inventory~", INVENTORY_SCREEN_COLOR);
+
+    int bottom_text_offset = 2;
     int item_id = p->inventory->items[inventory_cursor];
     switch (item_use_table[item_id]) {
         case FOOD:
-            mvprintw(center_row + q_row - 1, center_column - q_col + 1, "Eat (F)");
+            mvprintw(center_row + q_row - 1, center_column - q_col + bottom_text_offset, "Eat (F)");
+            bottom_text_offset += 8;
             break;
         case HELM:
         case BREASTPLATE:
         case GREAVES:
         case WEAPON:
         case SHIELD:
-            mvprintw(center_row + q_row - 1, center_column - q_col + 1, "Equip (F)");
+            mvprintw(center_row + q_row - 1, center_column - q_col + bottom_text_offset, "Equip (F)");
+            bottom_text_offset += 10;
             break;
     }
+    if (p->inventory->current_size > 0) {
+        mvprintw(center_row + q_row - 1, center_column - q_col + bottom_text_offset, "Drop (Z)");
+    }
 
-    
 
     // display items
     c = center_column - q_col + 2;

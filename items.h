@@ -38,7 +38,7 @@
 
 static const char* common_item_names[] =
 {
-    "NULL",               // 0
+    "None",               // 0
     "Bronze sword",       // 1
     "Bronze helm",        // 2
     "Bronze breastplate", // 3
