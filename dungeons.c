@@ -242,12 +242,15 @@ void display_inventory(player* p, int inventory_cursor)
 
 
     // display items
+    c = center_column - q_col + 2;
     for (int i = 0; i < p->inventory->current_size; i++) {
+        r = center_row - q_row + i + 2;
+        
         if (i == inventory_cursor) {
-            curse_print(center_row - q_row + i + 2, center_column - q_col + 1, 
+            curse_print(r, c, 
                 common_item_names[p->inventory->items[i]], HIGHLIGHT_TEXT_COLOR);
         } else {
-            mvprintw(center_row - q_row + i + 2, center_column - q_col + 1, 
+            mvprintw(r, c, 
                 common_item_names[p->inventory->items[i]]);
         }
     }
