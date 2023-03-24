@@ -36,6 +36,8 @@ void display_equipment(player* p);
 void display_center_box();
 void set_player_spawn(room** rooms, player* p);
 void set_item_spawns(room** rooms, int* item_grid, char* map);
+void equip_item(player* player_ptr, int* equipment_piece, int inventory_cursor, int item_id);
+
 
 int main()
 {
@@ -96,45 +98,24 @@ int main()
                             inventory_cursor = max(min(inventory_cursor, player_ptr->inventory->current_size - 1), 0);
                             break;
                         case HELM:
-                            // swap old helm into inventory for new helm
-                            if (player_ptr->helm != NULL_ITEM_ID) {
-                                player_ptr->inventory->items[inventory_cursor] = player_ptr->helm;
-                            } else {
-                                remove_item(player_ptr->inventory, inventory_cursor);
-                            }
-                            player_ptr->helm = item_id;
+                            equip_item(player_ptr, &(player_ptr->helm), inventory_cursor, item_id);
+                            inventory_cursor = max(min(inventory_cursor, player_ptr->inventory->current_size - 1), 0);
                             break;
                         case BREASTPLATE:
-                            if (player_ptr->breastplate != NULL_ITEM_ID) {
-                                player_ptr->inventory->items[inventory_cursor] = player_ptr->breastplate;
-                            } else {
-                                remove_item(player_ptr->inventory, inventory_cursor);
-                            }
-                            player_ptr->breastplate = item_id;
+                            equip_item(player_ptr, &(player_ptr->breastplate), inventory_cursor, item_id);
+                            inventory_cursor = max(min(inventory_cursor, player_ptr->inventory->current_size - 1), 0);
                             break;
                         case GREAVES:
-                            if (player_ptr->greaves != NULL_ITEM_ID) {
-                                player_ptr->inventory->items[inventory_cursor] = player_ptr->greaves;
-                            } else {
-                                remove_item(player_ptr->inventory, inventory_cursor);
-                            }
-                            player_ptr->greaves = item_id;
+                            equip_item(player_ptr, &(player_ptr->greaves), inventory_cursor, item_id);
+                            inventory_cursor = max(min(inventory_cursor, player_ptr->inventory->current_size - 1), 0);
                             break;
                         case WEAPON:
-                            if (player_ptr->weapon != NULL_ITEM_ID) {
-                                player_ptr->inventory->items[inventory_cursor] = player_ptr->weapon;
-                            } else {
-                                remove_item(player_ptr->inventory, inventory_cursor);
-                            }
-                            player_ptr->weapon = item_id;
+                            equip_item(player_ptr, &(player_ptr->weapon), inventory_cursor, item_id);
+                            inventory_cursor = max(min(inventory_cursor, player_ptr->inventory->current_size - 1), 0);
                             break;
                         case SHIELD:
-                            if (player_ptr->shield != NULL_ITEM_ID) {
-                                player_ptr->inventory->items[inventory_cursor] = player_ptr->shield;
-                            } else {
-                                remove_item(player_ptr->inventory, inventory_cursor);
-                            }
-                            player_ptr->shield = item_id;
+                            equip_item(player_ptr, &(player_ptr->shield), inventory_cursor, item_id);
+                            inventory_cursor = max(min(inventory_cursor, player_ptr->inventory->current_size - 1), 0);
                             break;
                     }
                     break;
@@ -183,12 +164,7 @@ void set_player_spawn(room** rooms, player* p)
     int bottom = r->corner_row + r->height;
     p->row = rand() % (bottom - 1 - r->corner_row) + r->corner_row + 1;
     p->column = rand() % (right - 2 - r->corner_col) + r->corner_col + 1;
-    // if (get_map_char(p->row, p->column, map) != OPEN_SPACE) {
-        
-    // }
-
 }
-
 
 
 void set_item_spawns(room** rooms, int* item_grid, char* map)
@@ -208,9 +184,18 @@ void set_item_spawns(room** rooms, int* item_grid, char* map)
             // pick item
             int item_id = rand() % (MAX_ITEM_ID - 1) + 1;
             item_grid[r_row * MAP_WIDTH + r_col] = item_id;
-            // set_map_char(r_row, r_col, map, ITEM_SYMBOL);
         }
     }   
+}
+
+void equip_item(player* player_ptr, int* equipment_piece, int inventory_cursor, int item_id)
+{
+    if (*(equipment_piece) != NULL_ITEM_ID) {
+        player_ptr->inventory->items[inventory_cursor] = *(equipment_piece);
+    } else {
+        remove_item(player_ptr->inventory, inventory_cursor);
+    }
+    *(equipment_piece) = item_id;
 }
 
 char handle_map_keypress(player* player_ptr, char key, char* map, int* item_grid)

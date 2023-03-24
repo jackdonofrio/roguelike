@@ -22,11 +22,12 @@
 #define BRONZE_BREASTPLATE 3
 #define BRONZE_GREAVES     4
 #define BRONZE_SHIELD      5
+#define IRON_HELM          6
 // food
-#define BREAD              6
-#define APPLE              7
+#define BREAD              7
+#define APPLE              8
 /////////////////////////////
-#define MAX_ITEM_ID        8
+#define MAX_ITEM_ID        9
 
 // item colors
 #define COMMON_ITEM_COLOR  1
@@ -44,8 +45,9 @@ static const char* common_item_names[] =
     "Bronze breastplate", // 3
     "Bronze greaves",     // 4
     "Bronze shield",      // 5
-    "Bread",              // 6
-    "Apple"               // 7
+    "Iron helm",          // 6
+    "Bread",              // 7
+    "Apple"               // 8
 };
 
 // TODO - compress info into bytes to create one lookup table for
@@ -59,6 +61,7 @@ static const int item_use_table[] =
     BREASTPLATE,    // B breastplate
     GREAVES,        // B greaves
     SHIELD,         // B shield
+    HELM,           // I helm
     FOOD,           // bread
     FOOD            // apple
 };
