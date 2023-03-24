@@ -151,7 +151,7 @@ char* map_gen(room** rooms, int level)
     bool use_bible = true; // experimental
     map = calloc(MAP_HEIGHT * MAP_WIDTH, sizeof(char));
     for (int i = 0; i < MAP_HEIGHT * MAP_WIDTH; i++) {
-        map[i] = random_wall();
+        map[i] = WALL; // random_wall();
     }
 
     for (int r = 0; r < ROOM_COUNT; r++) {

@@ -12,8 +12,9 @@ including room generation
 
 // map symbols
 #define PLAYER_SYMBOL '@'
+#define ITEM_SYMBOL '?'
 #define WALL '#'
-#define OPEN_SPACE ' '
+#define OPEN_SPACE '.'
 #define STAIR '%'
 
 // useful macros
