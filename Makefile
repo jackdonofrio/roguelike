@@ -1,5 +1,5 @@
 
-OBJS = map.o items.o
+OBJS = map.o items.o player.o
 
 
 dungeons: $(OBJS)

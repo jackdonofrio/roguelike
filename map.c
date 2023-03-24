@@ -258,7 +258,7 @@ char random_wall()
             case 12: return '\'';
             case 13: return ':';
             case 14: return ',';
-
+            default: return WALL;
         }
 }
 

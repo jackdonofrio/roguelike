@@ -12,19 +12,13 @@
 #include <ncurses.h>
 #include "map.h"
 #include "items.h"
+#include "player.h"
 
 #define ESCAPE_ASCII 27
 #define INVENTORY_SCREEN_COLOR 5
-#define INVENTORY_TEXT_OFFSET 5
+#define INVENTORY_TEXT_OFFSET 6
 #define HIGHLIGHT_TEXT_COLOR 40
 
-typedef struct player
-{
-    int row;
-    int column;
-    uint health; // integer from 0 to 100
-    inventory_t* inventory;
-} player;
 
 void setup_ncurses();
 void write_map_curse(char* map, int* item_grid);
@@ -33,20 +27,16 @@ void curse_print(int row, int column, const char* message, int color);
 void curse_clear_lines(int start_row, int inclusive_end_row, int column);
 char handle_map_keypress(player* player_ptr, char key, char* map, int* item_grid);
 char handle_walk_key(player* player_ptr, char* map, int row_change, int col_change, int* item_grid);
-player* player_init(int start_row, int start_col);
-void player_delete(player* p);
 void display_inventory(player* p, int inventory_cursor);
 void set_player_spawn(room** rooms, player* p);
 void set_item_spawns(room** rooms, int* item_grid, char* map);
-int* create_item_grid();
-void delete_item_grid(int* item_grid);
 
 
 int main()
 {
     // full_inventory(NULL);
     srand(time(NULL));
-    player* player_ptr = player_init(2, 2);
+    player* player_ptr = player_init();
     char* map;
     room** rooms;
     int* item_grid;
@@ -63,6 +53,7 @@ int main()
     setup_ncurses();
     write_map_curse(map, item_grid);
     curse_put(player_ptr->row, player_ptr->column, PLAYER_SYMBOL, PLAYER_SYMBOL);
+    curse_print(MAP_HEIGHT, 0, "Inventory (E)", HIGHLIGHT_TEXT_COLOR);
     
    
 
@@ -72,12 +63,39 @@ int main()
             in_inventory_screen = !in_inventory_screen;
         } 
         if (in_inventory_screen) {
+            int item_id = player_ptr->inventory->items[inventory_cursor];
             switch (key) {
                 case 'w': case 'W':
                     inventory_cursor = max(0, inventory_cursor - 1);
                     break;
                 case 's': case 'S':
                     inventory_cursor = min(player_ptr->inventory->current_size - 1, inventory_cursor + 1);
+                    break;
+                case 'f': case 'F':
+                    switch (item_use_table[item_id]) {
+                        case FOOD:
+                            remove_item(player_ptr->inventory, inventory_cursor);
+                            int health_boost = calc_food_hp_boost(item_id);
+                            player_ptr->health = min(DEFAULT_MAX_HEALTH, player_ptr->health + health_boost);
+                            // so the cursor doesn't go out of bounds, we do the following
+                            inventory_cursor = max(min(inventory_cursor, player_ptr->inventory->current_size - 1), 0);
+                            break;
+                        case HELM:
+                            // TODO
+                            break;
+                        case BREASTPLATE:
+                            // TODO 
+                            break;
+                        case GREAVES:
+                            // TODO
+                            break;
+                        case WEAPON:
+                            // TODO
+                            break;
+                        case SHIELD:
+                            // TODO
+                            break;
+                    }
                     break;
             }
             display_inventory(player_ptr, inventory_cursor);
@@ -101,6 +119,7 @@ int main()
             write_map_curse(map, item_grid);
             curse_put(player_ptr->row, player_ptr->column, PLAYER_SYMBOL, PLAYER_SYMBOL);
         }
+        curse_print(MAP_HEIGHT, 0, "Inventory (E)", HIGHLIGHT_TEXT_COLOR);
     }
     free(map);
     player_delete(player_ptr);
@@ -128,19 +147,7 @@ void set_player_spawn(room** rooms, player* p)
 
 }
 
-void delete_item_grid(int* item_grid)
-{
-    free(item_grid);
-}
 
-int* create_item_grid()
-{
-    int* item_grid = malloc(sizeof(int) * MAP_HEIGHT * MAP_WIDTH);
-    for (int i = 0; i < MAP_HEIGHT * MAP_WIDTH; i++) {
-        item_grid[i] = NULL_ITEM_ID;
-    }
-    return item_grid;
-}
 
 void set_item_spawns(room** rooms, int* item_grid, char* map)
 {
@@ -178,7 +185,9 @@ char handle_map_keypress(player* player_ptr, char key, char* map, int* item_grid
             return handle_walk_key(player_ptr, map, 1, 0, item_grid);
         case 'd':
             return handle_walk_key(player_ptr, map, 0, 1, item_grid);
-        }
+        default:
+            return 0;
+    }
 }
 
 // returns status code based on what was stepped on
@@ -238,14 +247,28 @@ void display_inventory(player* p, int inventory_cursor)
     curse_put(center_row + q_row, center_column - q_col, '+', INVENTORY_SCREEN_COLOR);
     curse_put(center_row + q_row, center_column + q_col - 1, '+', INVENTORY_SCREEN_COLOR);
 
-    mvprintw(center_row - q_row + 1, center_column - INVENTORY_TEXT_OFFSET, "Inventory");
+    mvprintw(center_row - q_row + 1, center_column - INVENTORY_TEXT_OFFSET, "~Inventory~");
 
+    int item_id = p->inventory->items[inventory_cursor];
+    switch (item_use_table[item_id]) {
+        case FOOD:
+            mvprintw(center_row + q_row - 1, center_column - q_col + 1, "Eat (F)");
+            break;
+        case HELM:
+        case BREASTPLATE:
+        case GREAVES:
+        case WEAPON:
+        case SHIELD:
+            mvprintw(center_row + q_row - 1, center_column - q_col + 1, "Equip (F)");
+            break;
+    }
+
+    
 
     // display items
     c = center_column - q_col + 2;
     for (int i = 0; i < p->inventory->current_size; i++) {
         r = center_row - q_row + i + 2;
-        
         if (i == inventory_cursor) {
             curse_print(r, c, 
                 common_item_names[p->inventory->items[i]], HIGHLIGHT_TEXT_COLOR);
@@ -262,39 +285,6 @@ void curse_print(int row, int column, const char* message, int color)
     mvprintw(row, column, message);
     attroff(COLOR_PAIR(color));
 }
-
-player* player_init(int start_row, int start_column)
-{
-    player* p = malloc(sizeof(player));
-    if (p == NULL) {
-        fprintf(stderr, "error: unable to allocate player data\n");
-        exit(1);
-        return NULL;
-    }
-
-    p->row = start_row;
-    p->column = start_column;
-    p->health = 100; // starting health - make macro later later
-    p->inventory = malloc(sizeof(inventory_t));
-    for (int i = 0; i < MAX_INVENTORY_SIZE; i++) {
-        p->inventory->items[i] = NULL_ITEM_ID;
-    }
-    p->inventory->current_size = 0;
-
-    // move to start location
-    curse_put(start_row, start_column, PLAYER_SYMBOL, 2);
-    return p;
-}
-
-void player_delete(player* p)
-{
-    if (p == NULL) {
-        return;
-    }
-    free(p->inventory);
-    free(p);
-}
-
 
 void setup_ncurses()
 {
