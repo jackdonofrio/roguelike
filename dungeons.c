@@ -18,6 +18,7 @@
 #define INVENTORY_SCREEN_COLOR 5
 #define INVENTORY_TEXT_OFFSET 6
 #define HIGHLIGHT_TEXT_COLOR 40
+#define STEP_HEALTH_LOSS 1
 
 #define MAP_SCREEN 'M'
 #define INVENTORY_SCREEN 'I'
@@ -25,18 +26,19 @@
 #define STATS_SCREEN 'S'
 
 void setup_ncurses();
-void write_map_curse(char* map, int* item_grid);
+void write_map_curse(char* map, int item_grid[]);
 void curse_put(int row, int col, char c, int color);
 void curse_print(int row, int column, const char* message, int color);
 void curse_clear_lines(int start_row, int inclusive_end_row, int column);
-char handle_map_keypress(player* player_ptr, char key, char* map, int* item_grid);
-char handle_walk_key(player* player_ptr, char* map, int row_change, int col_change, int* item_grid);
+char handle_map_keypress(player* player_ptr, char key, char* map, int item_grid[]);
+char handle_walk_key(player* player_ptr, char* map, int row_change, int col_change, int item_grid[]);
 void display_inventory(player* p, int inventory_cursor);
 void display_equipment(player* p);
 void display_center_box();
 void set_player_spawn(room** rooms, player* p);
-void set_item_spawns(room** rooms, int* item_grid, char* map);
+void set_item_spawns(room** rooms, int item_grid[], char* map);
 void equip_item(player* player_ptr, int* equipment_piece, int inventory_cursor, int item_id);
+void display_user_info_line(player* p);
 
 
 int main()
@@ -46,21 +48,22 @@ int main()
     player* player_ptr = player_init();
     char* map;
     room** rooms;
-    int* item_grid;
+    int item_grid[MAP_WIDTH * MAP_HEIGHT];
+    clear_item_grid(item_grid);
+    
     int floor = 0;
     char current_screen = MAP_SCREEN;
     int inventory_cursor = 0;
 
     rooms = rooms_gen();
     map = map_gen(rooms, floor); 
-    item_grid = create_item_grid();
     set_item_spawns(rooms, item_grid, map);
     set_player_spawn(rooms, player_ptr);
         
     setup_ncurses();
     write_map_curse(map, item_grid);
     curse_put(player_ptr->row, player_ptr->column, PLAYER_SYMBOL, PLAYER_SYMBOL);
-    mvprintw(MAP_HEIGHT, 0, "HP: %d", DEFAULT_MAX_HEALTH);
+    display_user_info_line(player_ptr);
     curse_print(MAP_HEIGHT + 1, 0, "Inventory (E)", HIGHLIGHT_TEXT_COLOR);
     curse_print(MAP_HEIGHT + 1, 20, "Equipment (T)", HIGHLIGHT_TEXT_COLOR);
     curse_print(MAP_HEIGHT + 1, 40, "Stats (R)", HIGHLIGHT_TEXT_COLOR);
@@ -128,25 +131,24 @@ int main()
             switch (handle_map_keypress(player_ptr, key, map, item_grid)) {
                 case STAIR:
                     delete_rooms(rooms);
-                    delete_item_grid(item_grid);
                     free(map);
 
                     rooms = rooms_gen();
                     map = map_gen(rooms, ++floor); 
-                    item_grid = create_item_grid();
+                    clear_item_grid(item_grid);
                     set_item_spawns(rooms, item_grid, map);
                     set_player_spawn(rooms, player_ptr);
                     break;
             }
             // update map and player location
             write_map_curse(map, item_grid);
+            display_user_info_line(player_ptr);
             curse_put(player_ptr->row, player_ptr->column, PLAYER_SYMBOL, PLAYER_SYMBOL);
         }
         // curse_print(MAP_HEIGHT, 0, "Inventory (E)", HIGHLIGHT_TEXT_COLOR);
     }
     free(map);
     player_delete(player_ptr);
-    delete_item_grid(item_grid);
     for (int i = 0; i < ROOM_COUNT; i++) {
         free(rooms[i]);
     }
@@ -154,6 +156,11 @@ int main()
     
     endwin();
     return 0;
+}
+
+void display_user_info_line(player* p)
+{
+    mvprintw(MAP_HEIGHT, 0, "HP: %3d    Gold: %3d", p->health, p->gold);
 }
 
 
@@ -212,9 +219,8 @@ char handle_map_keypress(player* player_ptr, char key, char* map, int* item_grid
             return handle_walk_key(player_ptr, map, 1, 0, item_grid);
         case 'd':
             return handle_walk_key(player_ptr, map, 0, 1, item_grid);
-        default:
-            return 0;
     }
+    return 0;
 }
 
 // returns status code based on what was stepped on
@@ -224,6 +230,7 @@ char handle_walk_key(player* player_ptr, char* map, int row_change, int col_chan
     int new_col = player_ptr->column + col_change;
     char c = can_step(map, new_row, new_col);
     if (c) {
+        // player_ptr->health -= STEP_HEALTH_LOSS * (rand() % 2);
         player_ptr->row = new_row;
         player_ptr->column = new_col;
 
@@ -402,7 +409,7 @@ void write_map_curse(char* map, int* item_grid)
                     curse_put(row, column, c, STAIR);
                     break;
                 default:
-                    curse_put(row, column, WALL, 0);
+                    curse_put(row, column, c, 0);
                     break;
             }
         }

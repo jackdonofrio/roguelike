@@ -72,8 +72,7 @@ typedef struct inventory
     int items[MAX_INVENTORY_SIZE]; // list of item IDs
 } inventory_t;
 
-int* create_item_grid();
-void delete_item_grid(int* item_grid);
+void clear_item_grid(int item_grid[]);
 bool full_inventory(inventory_t* inventory);
 void add_item(inventory_t* inventory, int item_id);
 int remove_item(inventory_t* inventory, int index);

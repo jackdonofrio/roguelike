@@ -4,9 +4,16 @@
 
 typedef struct player
 {
+    // location / map-relevant info
     int row;
     int column;
+
+
+    // data
     int health; // integer from 0 to 100
+    int gold;
+
+
     inventory_t* inventory;
 
     // equipable items

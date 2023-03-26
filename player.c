@@ -31,7 +31,8 @@ player* player_init()
     p->weapon = NULL_ITEM_ID;
     p->shield = NULL_ITEM_ID;
 
-    p->health = DEFAULT_MAX_HEALTH; // starting health - make macro later later
+    p->health = DEFAULT_MAX_HEALTH; 
+    p->gold = 0;
     p->inventory = malloc(sizeof(inventory_t));
     for (int i = 0; i < MAX_INVENTORY_SIZE; i++) {
         p->inventory->items[i] = NULL_ITEM_ID;

@@ -4,19 +4,13 @@
 #include "items.h"
 #include "map.h"
 
-int* create_item_grid()
+void clear_item_grid(int item_grid[])
 {
-    int* item_grid = malloc(sizeof(int) * MAP_HEIGHT * MAP_WIDTH);
     for (int i = 0; i < MAP_HEIGHT * MAP_WIDTH; i++) {
         item_grid[i] = NULL_ITEM_ID;
     }
-    return item_grid;
 }
 
-void delete_item_grid(int* item_grid)
-{
-    free(item_grid);
-}
 
 bool full_inventory(inventory_t* inventory)
 {

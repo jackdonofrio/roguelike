@@ -240,26 +240,26 @@ void dig_horizontal_tunnel(int r, int c1, int c2, char* map)
 
 char random_wall()
 {
-    // int r = rand();
-    //  return r % 26 + (r % 1 ? 65 : 97);
-    switch (rand() % 15) {
-            case 0: return '(';
-            case 1: return '+';               
-            case 2: return '$';             
-            case 3: return '!';               
-            case 4: return '>';            
-            case 5: return '&';
-            case 6: return ';';                
-            case 7: return '=';          
-            case 8: return '-';          
-            case 9: return '}';
-            case 10: return '[';
-            case 11: return '\"';
-            case 12: return '\'';
-            case 13: return ':';
-            case 14: return ',';
-            default: return WALL;
-        }
+    int r = rand();
+     return r % 26 + (r % 1 ? 65 : 97);
+    // switch (rand() % 15) {
+    //         case 0: return '(';
+    //         case 1: return '+';               
+    //         case 2: return '$';             
+    //         case 3: return '!';               
+    //         case 4: return '>';            
+    //         case 5: return '&';
+    //         case 6: return ';';                
+    //         case 7: return '=';          
+    //         case 8: return '-';          
+    //         case 9: return '}';
+    //         case 10: return '[';
+    //         case 11: return '\"';
+    //         case 12: return '\'';
+    //         case 13: return ':';
+    //         case 14: return ',';
+    //         default: return WALL;
+    //     }
 }
 
 // use bounding box
