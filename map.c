@@ -31,38 +31,35 @@ Loads map from file
 //     return map;
 // }
 
-char* load_map(char* filename)
+void load_map(char* filename, char map[])
 {
     FILE* fp = fopen(filename, "r");
     if (fp == NULL) {
         fprintf(stderr, "error: unable to read file %s\n", filename);
-        return NULL;
+        exit(1);
     }
     char c;
     int i = 0;
-    char* map = malloc(sizeof(char) * MAP_HEIGHT * MAP_WIDTH);
     while ((c = fgetc(fp)) != EOF && i < MAP_HEIGHT * MAP_WIDTH) {
         if (c != '\n' && ((int)c) != 13) {
             map[i++] = c;
         }        
     }
     fclose(fp);
-    return map;
 }
 
-char get_map_char(int row, int col, char* map)
+char get_map_char(int row, int col, char map[])
 {
     return map[row * MAP_WIDTH + col];
 }
 
-void set_map_char(int row, int col, char* map, char c)
+void set_map_char(int row, int col, char map[], char c)
 {
     map[row * MAP_WIDTH + col] = c;
 }
 
-room** rooms_gen()
+void rooms_gen(room* rooms[])
 {
-    room** rooms = malloc(sizeof(room) * ROOM_COUNT);
     for (int i = 0; i < ROOM_COUNT; i++) {
         room* r = room_gen();
         while (room_overlaps(r, rooms, i)) {
@@ -71,15 +68,13 @@ room** rooms_gen()
         }
         rooms[i] = r;
     }
-    return rooms;
 }
 
-void delete_rooms(room** rooms)
+void delete_rooms(room* rooms[])
 {
     for (int i = 0; i < ROOM_COUNT; i++) {
             free(rooms[i]);
         }
-    free(rooms);
 }
 
 room* room_gen()
@@ -119,7 +114,7 @@ bool rooms_overlap(room* r1, room* r2)
 }
 
 // return whether a given room overlaps with any other room
-bool room_overlaps(room* r, room** rooms, int n)
+bool room_overlaps(room* r, room* rooms[], int n)
 {
     if (r == NULL || rooms == NULL) {
         return NULL;
@@ -132,7 +127,7 @@ bool room_overlaps(room* r, room** rooms, int n)
     return false;
 }
 
-void draw_room(room* r, char* map)
+void draw_room(room* r, char map[])
 {
     int right_edge = r->corner_col + r->width;
     int bottom_edge = r->corner_row + r->height;
@@ -145,11 +140,8 @@ void draw_room(room* r, char* map)
 }
 
 // given valid rooms, draw map
-char* map_gen(room** rooms, int level)
+void map_gen(room* rooms[], int level, char map[])
 {
-    char* map;
-    bool use_bible = true; // experimental
-    map = calloc(MAP_HEIGHT * MAP_WIDTH, sizeof(char));
     for (int i = 0; i < MAP_HEIGHT * MAP_WIDTH; i++) {
         map[i] = WALL; // random_wall();
     }
@@ -166,10 +158,9 @@ char* map_gen(room** rooms, int level)
     // pick stair location
     set_stair_spawn(rooms, map);
     
-    return map;
 }
 
-void join_rooms(room* room1, room* room2, char* map)
+void join_rooms(room* room1, room* room2, char map[])
 {
     int r1, c1, r2, c2;
 
@@ -202,7 +193,7 @@ bool within_room(room* r, int row, int col)
             col <= (r->corner_col + r->width);
 }
 
-void set_stair_spawn(room** rooms, char* map)
+void set_stair_spawn(room* rooms[], char map[])
 {
     room* r = rooms[rand() % ROOM_COUNT];
     int right = r->corner_col + r->width;
@@ -212,7 +203,7 @@ void set_stair_spawn(room** rooms, char* map)
     set_map_char(row, column, map, STAIR);
 }
 
-char can_step(char* map, int row, int column)
+char can_step(char map[], int row, int column)
 {
     if (row < 0 || row >= MAP_HEIGHT || column < 0 || column >= MAP_WIDTH) {
         return 0;
@@ -224,14 +215,14 @@ char can_step(char* map, int row, int column)
     return 0;
 }
 
-void dig_vertical_tunnel(int r1, int r2, int c, char* map)
+void dig_vertical_tunnel(int r1, int r2, int c, char map[])
 {
     for (int row = min(r1, r2); row <= max(r1, r2); row++) {
         set_map_char(row, c, map, OPEN_SPACE);
     }
 }
 
-void dig_horizontal_tunnel(int r, int c1, int c2, char* map)
+void dig_horizontal_tunnel(int r, int c1, int c2, char map[])
 {
     for (int col = min(c1, c2); col <= max(c1, c2); col++) {
         set_map_char(r, col, map, OPEN_SPACE);

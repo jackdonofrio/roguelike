@@ -30,24 +30,24 @@ typedef struct room {
 } room;
 
 
-char* load_map(char* filename);
-char get_map_char(int row, int col, char* map);
-void set_map_char(int row, int col, char* map, char c);
+void load_map(char* filename, char map[]);
+char get_map_char(int row, int col, char map[]);
+void set_map_char(int row, int col, char map[], char c);
 
-room** rooms_gen();
+void rooms_gen(room* rooms[]);
 room* room_gen();
-bool room_overlaps(room* r, room** rooms, int n);
+bool room_overlaps(room* r, room* rooms[], int n);
 bool rooms_overlap(room* r1, room* r2);
-void join_rooms(room* r1, room* r2, char* map);
-void dig_vertical_tunnel(int r1, int r2, int c, char* map);
-void dig_horizontal_tunnel(int r, int c1, int c2, char* map);
+void join_rooms(room* r1, room* r2, char map[]);
+void dig_vertical_tunnel(int r1, int r2, int c, char map[]);
+void dig_horizontal_tunnel(int r, int c1, int c2, char map[]);
 bool within_room(room* r, int row, int col);
-void set_stair_spawn(room** rooms, char* map);
-void delete_rooms(room** rooms);
+void set_stair_spawn(room* rooms[], char map[]);
+void delete_rooms(room* rooms[]);
 char random_wall();
-void draw_room(room* r, char* map);
-char* map_gen(room** rooms, int level);
-char can_step(char* map, int row, int column);
+void draw_room(room* r, char map[]);
+void map_gen(room* rooms[], int level, char map[]);
+char can_step(char map[], int row, int column);
 // void update_visibility(char* map, bool visible[], int row, int column);
 
 // bool is_visible(char* map, int player_row, int player_col, int row, int column);

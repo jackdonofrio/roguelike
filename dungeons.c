@@ -26,37 +26,36 @@
 #define STATS_SCREEN 'S'
 
 void setup_ncurses();
-void write_map_curse(char* map, int item_grid[]);
+void write_map_curse(char map[], int item_grid[]);
 void curse_put(int row, int col, char c, int color);
 void curse_print(int row, int column, const char* message, int color);
 void curse_clear_lines(int start_row, int inclusive_end_row, int column);
-char handle_map_keypress(player* player_ptr, char key, char* map, int item_grid[]);
-char handle_walk_key(player* player_ptr, char* map, int row_change, int col_change, int item_grid[]);
+char handle_map_keypress(player* player_ptr, char key, char map[], int item_grid[]);
+char handle_walk_key(player* player_ptr, char map[], int row_change, int col_change, int item_grid[]);
 void display_inventory(player* p, int inventory_cursor);
 void display_equipment(player* p);
 void display_center_box();
-void set_player_spawn(room** rooms, player* p);
-void set_item_spawns(room** rooms, int item_grid[], char* map);
+void set_player_spawn(room* rooms[], player* p);
+void set_item_spawns(room* rooms[], int item_grid[], char map[]);
 void equip_item(player* player_ptr, int* equipment_piece, int inventory_cursor, int item_id);
 void display_user_info_line(player* p);
 
 
 int main()
 {
-    // full_inventory(NULL);
     srand(time(NULL));
     player* player_ptr = player_init();
-    char* map;
-    room** rooms;
+    char map[MAP_WIDTH * MAP_HEIGHT];
+    room* rooms[ROOM_COUNT];
     int item_grid[MAP_WIDTH * MAP_HEIGHT];
     clear_item_grid(item_grid);
-    
+
     int floor = 0;
     char current_screen = MAP_SCREEN;
     int inventory_cursor = 0;
 
-    rooms = rooms_gen();
-    map = map_gen(rooms, floor); 
+    rooms_gen(rooms);
+    map_gen(rooms, floor, map); 
     set_item_spawns(rooms, item_grid, map);
     set_player_spawn(rooms, player_ptr);
         
@@ -131,10 +130,9 @@ int main()
             switch (handle_map_keypress(player_ptr, key, map, item_grid)) {
                 case STAIR:
                     delete_rooms(rooms);
-                    free(map);
 
-                    rooms = rooms_gen();
-                    map = map_gen(rooms, ++floor); 
+                    rooms_gen(rooms);
+                    map_gen(rooms, ++floor, map); 
                     clear_item_grid(item_grid);
                     set_item_spawns(rooms, item_grid, map);
                     set_player_spawn(rooms, player_ptr);
@@ -145,14 +143,9 @@ int main()
             display_user_info_line(player_ptr);
             curse_put(player_ptr->row, player_ptr->column, PLAYER_SYMBOL, PLAYER_SYMBOL);
         }
-        // curse_print(MAP_HEIGHT, 0, "Inventory (E)", HIGHLIGHT_TEXT_COLOR);
     }
-    free(map);
     player_delete(player_ptr);
-    for (int i = 0; i < ROOM_COUNT; i++) {
-        free(rooms[i]);
-    }
-    free(rooms);
+    delete_rooms(rooms);
     
     endwin();
     return 0;
@@ -164,7 +157,7 @@ void display_user_info_line(player* p)
 }
 
 
-void set_player_spawn(room** rooms, player* p)
+void set_player_spawn(room* rooms[], player* p)
 {
     room* r = rooms[rand() % ROOM_COUNT];
     int right = r->corner_col + r->width;
@@ -174,7 +167,7 @@ void set_player_spawn(room** rooms, player* p)
 }
 
 
-void set_item_spawns(room** rooms, int* item_grid, char* map)
+void set_item_spawns(room* rooms[], int* item_grid, char map[])
 {
     for (int i = 0; i < ROOM_COUNT; i++) {
         room* r = rooms[i];
@@ -205,7 +198,7 @@ void equip_item(player* player_ptr, int* equipment_piece, int inventory_cursor, 
     *(equipment_piece) = item_id;
 }
 
-char handle_map_keypress(player* player_ptr, char key, char* map, int* item_grid)
+char handle_map_keypress(player* player_ptr, char key, char map[], int* item_grid)
 {
     char map_char;
     switch (key) {
@@ -224,7 +217,7 @@ char handle_map_keypress(player* player_ptr, char key, char* map, int* item_grid
 }
 
 // returns status code based on what was stepped on
-char handle_walk_key(player* player_ptr, char* map, int row_change, int col_change, int* item_grid)
+char handle_walk_key(player* player_ptr, char map[], int row_change, int col_change, int* item_grid)
 {
     int new_row = player_ptr->row + row_change;
     int new_col = player_ptr->column + col_change;
@@ -389,7 +382,7 @@ void curse_put(int row, int col, char c, int color)
     attroff(COLOR_PAIR(color));
 }
 
-void write_map_curse(char* map, int* item_grid)
+void write_map_curse(char map[], int* item_grid)
 {
     for (int row = 0; row < MAP_HEIGHT; row++) {
         for (int column = 0; column < MAP_WIDTH; column++) {
