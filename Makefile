@@ -5,9 +5,9 @@ OBJS = map.o items.o player.o
 dungeons: $(OBJS)
 	$(CC) dungeons.c $^ -o $@ $(CFLAGS) -lcurses
 
-items.o: items.c
-map.o: map.c
-player.o: player.c
+items.o: items.h
+map.o: map.h
+player.o: player.h
 
 .PHONY: clean test
 
