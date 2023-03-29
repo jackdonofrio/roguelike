@@ -73,8 +73,8 @@ void rooms_gen(room* rooms[])
 void delete_rooms(room* rooms[])
 {
     for (int i = 0; i < ROOM_COUNT; i++) {
-            free(rooms[i]);
-        }
+        free(rooms[i]);
+    }
 }
 
 room* room_gen()

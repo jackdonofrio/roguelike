@@ -3,6 +3,9 @@
 #ifndef ITEMS_H
 #define ITEMS_H
 
+
+// TODO - write python script to autogenerate hard-coded item data values
+
 #define MAX_INVENTORY_SIZE 10
 
 #define DROP_RATE_PER_ROOM 1 // 1 over N odds that an item drops in a given room
@@ -26,8 +29,10 @@
 // food
 #define BREAD              7
 #define APPLE              8
+// misc weapons
+#define STICK              9
 /////////////////////////////
-#define MAX_ITEM_ID        9
+#define MAX_ITEM_ID        10
 
 // item colors
 #define COMMON_ITEM_COLOR  1
@@ -47,7 +52,8 @@ static const char* common_item_names[] =
     "Bronze shield",      // 5
     "Iron helm",          // 6
     "Bread",              // 7
-    "Apple"               // 8
+    "Apple",               // 8
+    "Stick"
 };
 
 // TODO - compress info into bytes to create one lookup table for
@@ -63,7 +69,8 @@ static const int item_use_table[] =
     SHIELD,         // B shield
     HELM,           // I helm
     FOOD,           // bread
-    FOOD            // apple
+    FOOD,           // apple
+    WEAPON
 };
 
 typedef struct inventory

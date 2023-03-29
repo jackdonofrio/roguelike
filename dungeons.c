@@ -200,7 +200,6 @@ void equip_item(player* player_ptr, int* equipment_piece, int inventory_cursor, 
 
 char handle_map_keypress(player* player_ptr, char key, char map[], int* item_grid)
 {
-    char map_char;
     switch (key) {
         case 'q':
             break;
