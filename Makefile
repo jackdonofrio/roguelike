@@ -3,7 +3,7 @@ CFLAGS = -g -Wall -Wextra
 OBJS = map.o items.o player.o
 
 dungeons: $(OBJS)
-	$(CC) dungeons.c $^ -o $@ $(CFLAGS) -lcurses
+	$(CC) $(CFLAGS) dungeons.c $^ -o $@ -lcurses
 
 items.o: items.h
 map.o: map.h
