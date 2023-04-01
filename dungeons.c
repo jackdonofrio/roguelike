@@ -19,6 +19,8 @@
 #define INVENTORY_TEXT_OFFSET 6
 #define HIGHLIGHT_TEXT_COLOR 40
 #define STEP_HEALTH_LOSS 1
+#define MAP_HEIGHT_OFFSET 1
+#define MAP_BOTTOM (MAP_HEIGHT + MAP_HEIGHT_OFFSET)
 
 #define MAP_SCREEN 'M'
 #define INVENTORY_SCREEN 'I'
@@ -39,6 +41,11 @@ void set_player_spawn(room* rooms[], player* p);
 void set_item_spawns(room* rooms[], int item_grid[], char map[]);
 void equip_item(player* player_ptr, int* equipment_piece, int inventory_cursor, int item_id);
 void display_user_info_line(player* p);
+void display_player_char(player* p);
+
+// status line messages
+void print_item_pickup(int item_id);
+void print_new_floor(int floor);
 
 
 int main()
@@ -50,7 +57,7 @@ int main()
     int item_grid[MAP_WIDTH * MAP_HEIGHT];
     clear_item_grid(item_grid);
 
-    int floor = 0;
+    int floor = 1;
     char current_screen = MAP_SCREEN;
     int inventory_cursor = 0;
 
@@ -61,11 +68,11 @@ int main()
         
     setup_ncurses();
     write_map_curse(map, item_grid);
-    curse_put(player_ptr->row, player_ptr->column, PLAYER_SYMBOL, PLAYER_SYMBOL);
+    display_player_char(player_ptr);
     display_user_info_line(player_ptr);
-    curse_print(MAP_HEIGHT + 1, 0, "Inventory (E)", HIGHLIGHT_TEXT_COLOR);
-    curse_print(MAP_HEIGHT + 1, 20, "Equipment (T)", HIGHLIGHT_TEXT_COLOR);
-    curse_print(MAP_HEIGHT + 1, 40, "Stats (R)", HIGHLIGHT_TEXT_COLOR);
+    curse_print(MAP_BOTTOM + 1, 0, "Inventory (E)", HIGHLIGHT_TEXT_COLOR);
+    curse_print(MAP_BOTTOM + 1, 20, "Equipment (T)", HIGHLIGHT_TEXT_COLOR);
+    curse_print(MAP_BOTTOM + 1, 40, "Stats (R)", HIGHLIGHT_TEXT_COLOR);
 
     char key;
     while ((key = getch()) != 'q') {
@@ -136,12 +143,13 @@ int main()
                     clear_item_grid(item_grid);
                     set_item_spawns(rooms, item_grid, map);
                     set_player_spawn(rooms, player_ptr);
+                    print_new_floor(floor);
                     break;
             }
             // update map and player location
             write_map_curse(map, item_grid);
             display_user_info_line(player_ptr);
-            curse_put(player_ptr->row, player_ptr->column, PLAYER_SYMBOL, PLAYER_SYMBOL);
+            display_player_char(player_ptr);
         }
     }
     player_delete(player_ptr);
@@ -151,9 +159,32 @@ int main()
     return 0;
 }
 
+void print_item_pickup(int item_id)
+{
+    move(0, 0);
+    clrtoeol();
+    attron(COLOR_PAIR(5));
+    const int offset = 14;
+    mvprintw(0, 0, "You picked up ");
+    // later, print color based on item rarity
+    attroff(COLOR_PAIR(5));
+    attron(COLOR_PAIR(6));
+    mvprintw(0, offset, "%s", common_item_names[item_id]);
+    attroff(COLOR_PAIR(6));
+}
+
+void print_new_floor(int floor)
+{
+    move(0, 0);
+    clrtoeol();
+    attron(COLOR_PAIR(5));
+    mvprintw(0, 0, "You entered Floor %d", floor);
+    attroff(COLOR_PAIR(5));
+}
+
 void display_user_info_line(player* p)
 {
-    mvprintw(MAP_HEIGHT, 0, "HP: %3d    Gold: %3d", p->health, p->gold);
+    mvprintw(MAP_HEIGHT + MAP_HEIGHT_OFFSET, 0, "HP: %3d    Gold: %3d", p->health, p->gold);
 }
 
 
@@ -198,6 +229,11 @@ void equip_item(player* player_ptr, int* equipment_piece, int inventory_cursor, 
     *(equipment_piece) = item_id;
 }
 
+void display_player_char(player* p)
+{
+    curse_put(p->row + MAP_HEIGHT_OFFSET, p->column, PLAYER_SYMBOL, PLAYER_SYMBOL);
+}
+
 char handle_map_keypress(player* player_ptr, char key, char map[], int* item_grid)
 {
     switch (key) {
@@ -235,6 +271,7 @@ char handle_walk_key(player* player_ptr, char map[], int row_change, int col_cha
                 // if not, pick up item
                 // ...
                 add_item(player_ptr->inventory, step_item_id);
+                print_item_pickup(step_item_id);
                 // ...
                 item_grid[new_row * MAP_WIDTH + new_col] = NULL_ITEM_ID;
             }
@@ -383,25 +420,27 @@ void curse_put(int row, int col, char c, int color)
 
 void write_map_curse(char map[], int* item_grid)
 {
+
     for (int row = 0; row < MAP_HEIGHT; row++) {
         for (int column = 0; column < MAP_WIDTH; column++) {
             char c = get_map_char(row, column, map);
+            int display_row = row + MAP_HEIGHT_OFFSET;
             switch (c) {
                 case OPEN_SPACE:
                     if (item_grid[row * MAP_WIDTH + column] != NULL_ITEM_ID) {
-                        curse_put(row, column, ITEM_SYMBOL, ITEM_SYMBOL);
+                        curse_put(display_row, column, ITEM_SYMBOL, ITEM_SYMBOL);
                     } else {
-                        curse_put(row, column, OPEN_SPACE, 0);
+                        curse_put(display_row, column, OPEN_SPACE, 0);
                     }
                     break;
                 case WALL:
-                    curse_put(row, column, c, 0);
+                    curse_put(display_row, column, c, 0);
                     break;
                 case STAIR:
-                    curse_put(row, column, c, STAIR);
+                    curse_put(display_row, column, c, STAIR);
                     break;
                 default:
-                    curse_put(row, column, c, 0);
+                    curse_put(display_row, column, c, 0);
                     break;
             }
         }
