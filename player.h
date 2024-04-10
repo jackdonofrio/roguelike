@@ -13,6 +13,11 @@ typedef struct player
     int health; // integer from 0 to 100
     int gold;
 
+    // stats
+    int level;
+    int attack;
+    int defense;
+
 
     inventory_t* inventory;
 

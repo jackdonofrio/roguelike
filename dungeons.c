@@ -17,6 +17,7 @@
 #define ESCAPE_ASCII 27
 #define INVENTORY_SCREEN_COLOR 5
 #define INVENTORY_TEXT_OFFSET 6
+#define STATS_TEXT_OFFSET 4
 #define HIGHLIGHT_TEXT_COLOR 40
 #define STEP_HEALTH_LOSS 1
 #define MAP_HEIGHT_OFFSET 1
@@ -35,6 +36,7 @@ void curse_clear_lines(int start_row, int inclusive_end_row, int column);
 char handle_map_keypress(player* player_ptr, char key, char map[], int item_grid[]);
 char handle_walk_key(player* player_ptr, char map[], int row_change, int col_change, int item_grid[]);
 void display_inventory(player* p, int inventory_cursor);
+void display_stats(player* p);
 void display_equipment(player* p);
 void display_center_box();
 void set_player_spawn(room* rooms[], player* p);
@@ -80,6 +82,9 @@ int main()
             current_screen = (current_screen == INVENTORY_SCREEN) ? MAP_SCREEN : INVENTORY_SCREEN;
         } else if (key == 't' || key == 'T') {
             current_screen = (current_screen == EQUIPMENT_SCREEN) ? MAP_SCREEN : EQUIPMENT_SCREEN;
+        }
+        else if (key == 'r' || key == 'R') {
+            current_screen = (current_screen == STATS_SCREEN) ? MAP_SCREEN : STATS_SCREEN;
         }
         if (current_screen == INVENTORY_SCREEN) {
             int item_id = player_ptr->inventory->items[inventory_cursor];
@@ -132,6 +137,8 @@ int main()
             display_inventory(player_ptr, inventory_cursor);
         } else if (current_screen == EQUIPMENT_SCREEN) {
             display_equipment(player_ptr);
+        } else if (current_screen == STATS_SCREEN) {
+            display_stats(player_ptr);
         }
         else if (current_screen == MAP_SCREEN) {
             switch (handle_map_keypress(player_ptr, key, map, item_grid)) {
@@ -184,7 +191,9 @@ void print_new_floor(int floor)
 
 void display_user_info_line(player* p)
 {
+    attron(COLOR_PAIR(1));
     mvprintw(MAP_HEIGHT + MAP_HEIGHT_OFFSET, 0, "HP: %3d    Gold: %3d", p->health, p->gold);
+    attroff(COLOR_PAIR(1));
 }
 
 
@@ -306,6 +315,24 @@ void display_center_box()
     }
     curse_put(center_row + q_row, center_column - q_col, '+', INVENTORY_SCREEN_COLOR);
     curse_put(center_row + q_row, center_column + q_col - 1, '+', INVENTORY_SCREEN_COLOR);
+}
+
+
+void display_stats(player* p)
+{
+    int center_row = MAP_HEIGHT / 2;
+    int q_row = center_row / 2;
+    int center_column = MAP_WIDTH / 2;
+    int q_col = center_column / 2;
+    display_center_box();
+    curse_print(center_row - q_row + 1, center_column - STATS_TEXT_OFFSET,
+        "~Stats~", INVENTORY_SCREEN_COLOR);
+    mvprintw(center_row - q_row + 2, center_column - q_col + 2, 
+        "LEVEL:    %d", p->level);
+    mvprintw(center_row - q_row + 3, center_column - q_col + 2, 
+        "ATTACK:   %d", p->attack);
+    mvprintw(center_row - q_row + 4, center_column - q_col + 2, 
+        "DEFENSE:  %d", p->defense);
 }
 
 

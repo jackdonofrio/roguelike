@@ -33,6 +33,11 @@ player* player_init()
 
     p->health = DEFAULT_MAX_HEALTH; 
     p->gold = 0;
+    
+    p->level = 1;
+    p->attack = 1;
+    p->defense = 1;
+
     p->inventory = malloc(sizeof(inventory_t));
     for (int i = 0; i < MAX_INVENTORY_SIZE; i++) {
         p->inventory->items[i] = NULL_ITEM_ID;
