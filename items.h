@@ -3,20 +3,10 @@
 #ifndef ITEMS_H
 #define ITEMS_H
 
-
-// TODO - write python script to autogenerate hard-coded item data values
-
 #define MAX_INVENTORY_SIZE 10
 
 #define DROP_RATE_PER_ROOM 1 // 1 over N odds that an item drops in a given room
 
-// item use constants
-#define FOOD        'F'
-#define HELM        'H'
-#define BREASTPLATE 'B'
-#define GREAVES     'G'
-#define WEAPON      'W'
-#define SHIELD      'S'
 
 // item id's
 #define NULL_ITEM_ID       0
@@ -32,7 +22,7 @@
 // misc weapons
 #define STICK              9
 /////////////////////////////
-#define MAX_ITEM_ID        10
+#define NUM_ITEMS         10
 
 // item colors
 #define COMMON_ITEM_COLOR  1
@@ -42,36 +32,42 @@
 #define BASIC_HEALTH_BOOST 5
 
 
-static const char* common_item_names[] =
-{
-    "None",               // 0
-    "Bronze sword",       // 1
-    "Bronze helm",        // 2
-    "Bronze breastplate", // 3
-    "Bronze greaves",     // 4
-    "Bronze shield",      // 5
-    "Iron helm",          // 6
-    "Bread",              // 7
-    "Apple",               // 8
-    "Stick"
+// TODO - revamp item system
+typedef enum {
+    NONE,
+    WEAPON,
+    HELM,
+    BREASTPLATE,
+    GREAVES,
+    SHIELD,
+    FOOD
+} item_type;
+
+typedef struct {
+    char* name;
+    item_type type;
+    int min_level;
+    // using anonymous union
+    union {
+        int attack;
+        int defense;
+        int health_points;
+    };
+} item;
+
+static item item_data[NUM_ITEMS] = {
+    {"None",               NONE,        1, .attack        = 0},
+    {"Bronze sword",       WEAPON,      1, .attack        = 3},
+    {"Bronze helm",        HELM,        1, .defense       = 2},
+    {"Bronze breastplate", BREASTPLATE, 1, .defense       = 4},
+    {"Bronze greaves",     GREAVES,     1, .defense       = 3},
+    {"Bronze shield",      SHIELD,      1, .defense       = 4},
+    {"Iron helm",          HELM,        5, .defense       = 3},
+    {"Bread",              FOOD,        1, .health_points = BASIC_HEALTH_BOOST},
+    {"Apple",              FOOD,        1, .health_points = BASIC_HEALTH_BOOST},
+    {"Stick",              WEAPON,      1, .attack        = 1}
 };
 
-// TODO - compress info into bytes to create one lookup table for
-// compressed item data, and one lookup table for names
-
-static const int item_use_table[] =
-{
-    NULL_ITEM_ID,   // NULL 0
-    WEAPON,         // B sword
-    HELM,           // B Helm
-    BREASTPLATE,    // B breastplate
-    GREAVES,        // B greaves
-    SHIELD,         // B shield
-    HELM,           // I helm
-    FOOD,           // bread
-    FOOD,           // apple
-    WEAPON
-};
 
 typedef struct inventory
 {

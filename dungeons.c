@@ -37,6 +37,7 @@ char handle_map_keypress(player* player_ptr, char key, char map[], int item_grid
 char handle_walk_key(player* player_ptr, char map[], int row_change, int col_change, int item_grid[]);
 void display_inventory(player* p, int inventory_cursor);
 void display_stats(player* p);
+void calc_player_stats(player* p);
 void display_equipment(player* p);
 void display_center_box();
 void set_player_spawn(room* rooms[], player* p);
@@ -48,6 +49,7 @@ void display_player_char(player* p);
 // status line messages
 void print_item_pickup(int item_id);
 void print_new_floor(int floor);
+void print_item_min_level(int item_id);
 
 
 int main()
@@ -103,7 +105,7 @@ int main()
                     }
                     break;
                 case 'f': case 'F':
-                    switch (item_use_table[item_id]) {
+                    switch (item_data[item_id].type) {
                         case FOOD:
                             remove_item(player_ptr->inventory, inventory_cursor);
                             int health_boost = calc_food_hp_boost(item_id);
@@ -176,7 +178,7 @@ void print_item_pickup(int item_id)
     // later, print color based on item rarity
     attroff(COLOR_PAIR(5));
     attron(COLOR_PAIR(6));
-    mvprintw(0, offset, "%s", common_item_names[item_id]);
+    mvprintw(0, offset, "%s", item_data[item_id].name);
     attroff(COLOR_PAIR(6));
 }
 
@@ -186,6 +188,16 @@ void print_new_floor(int floor)
     clrtoeol();
     attron(COLOR_PAIR(5));
     mvprintw(0, 0, "You entered Floor %d", floor);
+    attroff(COLOR_PAIR(5));
+}
+
+void print_item_min_level(int item_id)
+{
+    move(0, 0);
+    clrtoeol();
+    attron(COLOR_PAIR(5));
+    mvprintw(0, 0, "You must be level %d to equip %s", 
+        item_data[item_id].min_level, item_data[item_id].name);
     attroff(COLOR_PAIR(5));
 }
 
@@ -222,7 +234,7 @@ void set_item_spawns(room* rooms[], int* item_grid, char map[])
                 continue;
             }
             // pick item
-            int item_id = rand() % (MAX_ITEM_ID - 1) + 1;
+            int item_id = rand() % (NUM_ITEMS - 1) + 1;
             item_grid[r_row * MAP_WIDTH + r_col] = item_id;
         }
     }   
@@ -230,6 +242,12 @@ void set_item_spawns(room* rooms[], int* item_grid, char map[])
 
 void equip_item(player* player_ptr, int* equipment_piece, int inventory_cursor, int item_id)
 {
+    if (player_ptr->level < item_data[item_id].min_level)
+    {
+        print_item_min_level(item_id);
+        return;
+    }
+
     if (*(equipment_piece) != NULL_ITEM_ID) {
         player_ptr->inventory->items[inventory_cursor] = *(equipment_piece);
     } else {
@@ -317,9 +335,18 @@ void display_center_box()
     curse_put(center_row + q_row, center_column + q_col - 1, '+', INVENTORY_SCREEN_COLOR);
 }
 
+void calc_player_stats(player* p)
+{
+    p->attack = item_data[p->weapon].attack;
+    p->defense = item_data[p->helm].defense + 
+        item_data[p->breastplate].defense +
+        item_data[p->greaves].defense +
+        item_data[p->shield].defense;
+}
 
 void display_stats(player* p)
 {
+    calc_player_stats(p);
     int center_row = MAP_HEIGHT / 2;
     int q_row = center_row / 2;
     int center_column = MAP_WIDTH / 2;
@@ -347,15 +374,15 @@ void display_equipment(player* p)
         "~Equipment~", INVENTORY_SCREEN_COLOR);
     // display equipment    
     mvprintw(center_row - q_row + 2, center_column - q_col + 2, 
-        "HELM:   %s", common_item_names[p->helm]);
+        "HELM:   %s", item_data[p->helm].name);
     mvprintw(center_row - q_row + 3, center_column - q_col + 2, 
-        "CHEST:  %s", common_item_names[p->breastplate]);
+        "CHEST:  %s", item_data[p->breastplate].name);
     mvprintw(center_row - q_row + 4, center_column - q_col + 2, 
-        "LEGS:   %s", common_item_names[p->greaves]);
+        "LEGS:   %s", item_data[p->greaves].name);
     mvprintw(center_row - q_row + 5, center_column - q_col + 2, 
-        "WEAPON: %s", common_item_names[p->weapon]);
+        "WEAPON: %s", item_data[p->weapon].name);
     mvprintw(center_row - q_row + 6, center_column - q_col + 2, 
-        "SHIELD: %s", common_item_names[p->shield]);
+        "SHIELD: %s", item_data[p->shield].name);
 }
 
 void display_inventory(player* p, int inventory_cursor)
@@ -373,7 +400,7 @@ void display_inventory(player* p, int inventory_cursor)
 
     int bottom_text_offset = 2;
     int item_id = p->inventory->items[inventory_cursor];
-    switch (item_use_table[item_id]) {
+    switch (item_data[item_id].type) {
         case FOOD:
             mvprintw(center_row + q_row - 1, center_column - q_col + bottom_text_offset, "Eat (F)");
             bottom_text_offset += 8;
@@ -398,10 +425,10 @@ void display_inventory(player* p, int inventory_cursor)
         r = center_row - q_row + i + 2;
         if (i == inventory_cursor) {
             curse_print(r, c, 
-                common_item_names[p->inventory->items[i]], HIGHLIGHT_TEXT_COLOR);
+                item_data[p->inventory->items[i]].name, HIGHLIGHT_TEXT_COLOR);
         } else {
             mvprintw(r, c, 
-                common_item_names[p->inventory->items[i]]);
+                item_data[p->inventory->items[i]].name);
         }
     }
 }

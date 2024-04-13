@@ -35,8 +35,8 @@ player* player_init()
     p->gold = 0;
     
     p->level = 1;
-    p->attack = 1;
-    p->defense = 1;
+    // p->attack = 1;
+    // p->defense = 1;
 
     p->inventory = malloc(sizeof(inventory_t));
     for (int i = 0; i < MAX_INVENTORY_SIZE; i++) {
