@@ -56,7 +56,7 @@ typedef struct {
 } item;
 
 static item item_data[NUM_ITEMS] = {
-    {"None",               NONE,        1, .attack        = 0},
+    {"None",               NONE,        1, .attack        = 1}, // fists have attack = 1
     {"Bronze sword",       WEAPON,      1, .attack        = 3},
     {"Bronze helm",        HELM,        1, .defense       = 2},
     {"Bronze breastplate", BREASTPLATE, 1, .defense       = 4},
@@ -65,7 +65,7 @@ static item item_data[NUM_ITEMS] = {
     {"Iron helm",          HELM,        5, .defense       = 3},
     {"Bread",              FOOD,        1, .health_points = BASIC_HEALTH_BOOST},
     {"Apple",              FOOD,        1, .health_points = BASIC_HEALTH_BOOST},
-    {"Stick",              WEAPON,      1, .attack        = 1}
+    {"Stick",              WEAPON,      1, .attack        = 2}
 };
 
 
@@ -75,7 +75,6 @@ typedef struct inventory
     int items[MAX_INVENTORY_SIZE]; // list of item IDs
 } inventory_t;
 
-void clear_item_grid(int item_grid[]);
 bool full_inventory(inventory_t* inventory);
 void add_item(inventory_t* inventory, int item_id);
 int remove_item(inventory_t* inventory, int index);

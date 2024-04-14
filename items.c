@@ -2,14 +2,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "items.h"
-#include "map.h"
-
-void clear_item_grid(int item_grid[])
-{
-    for (int i = 0; i < MAP_HEIGHT * MAP_WIDTH; i++) {
-        item_grid[i] = NULL_ITEM_ID;
-    }
-}
 
 
 bool full_inventory(inventory_t* inventory)
