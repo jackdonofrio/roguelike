@@ -254,21 +254,21 @@ char random_wall()
 }
 
 // use bounding box
-// void update_visibility(char* map, bool visible[], int row, int column)
-// {
-//     const int radius = 10;
-//     for (int r = row - radius; r <= row + radius; r++) {
-//         for (int c = column - radius; c <= column + radius; c++) {
-//             int dr = r - row;
-//             int dc = c - column;
-//             if (dr * dr + dc * dc <= radius) {
-//                 visible[r * MAP_WIDTH + c] = true;
-//             }
-//         }
-//     }
-// }
+void update_visibility(char* map, bool visible[], int row, int column)
+{
+    const int radius = 10;
+    for (int r = row - radius; r <= row + radius; r++) {
+        for (int c = column - radius; c <= column + radius; c++) {
+            int dr = r - row;
+            int dc = c - column;
+            if (dr * dr + dc * dc <= radius) {
+                visible[r * MAP_WIDTH + c] = true;
+            }
+        }
+    }
+}
 
-// // adapted from code I wrote for CS50 final project
+// adapted from code I wrote for CS50 final project
 // bool is_visible(char* map, int player_row, int player_col, int row, int column)
 // {
 //     if (map == NULL || row < 0 || row >= MAP_HEIGHT

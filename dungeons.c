@@ -32,6 +32,10 @@
 
 #define ATTACK_KEY 'Z'
 #define BLOCK_KEY  'X'
+
+#define ATTACK_MOVE 0
+#define BLOCK_MOVE  1
+
 #define UPPER_TO_LOWER_CONV 32
 
 #define DAMAGE_MSG_COLOR 5
@@ -54,10 +58,12 @@ void display_equipment(player* p);
 void display_center_box();
 
 void do_combat_sequence(player* p, int enemy_id, int* enemy_grid);
+int calc_damage_done(int attacker_attack, int defender_defense);
+
 
 void set_player_spawn(room* rooms[], player* p);
 void set_item_spawns(room* rooms[], int item_grid[], char map[]);
-void set_enemy_spawns(room* rooms[], int enemy_grid[], char map[]);
+void set_enemy_spawns(room* rooms[], int enemy_grid[], char map[], int floor);
 void update_enemy_positions(player* p, int enemy_grid[], char map[]);
 
 void equip_item(player* player_ptr, int* equipment_piece, int inventory_cursor, int item_id);
@@ -93,7 +99,7 @@ int main()
     rooms_gen(rooms);
     map_gen(rooms, floor, map); 
     set_item_spawns(rooms, item_grid, map);
-    set_enemy_spawns(rooms, enemy_grid, map);
+    set_enemy_spawns(rooms, enemy_grid, map, floor);
     set_player_spawn(rooms, player_ptr);
         
     setup_ncurses();
@@ -134,7 +140,7 @@ int main()
                     switch (item_data[item_id].type) {
                         case FOOD:
                             remove_item(player_ptr->inventory, inventory_cursor);
-                            int health_boost = calc_food_hp_boost(item_id);
+                            int health_boost = item_data[item_id].health_points;
                             player_ptr->health = min(DEFAULT_MAX_HEALTH, player_ptr->health + health_boost);
                             // so the cursor doesn't go out of bounds, we do the following
                             inventory_cursor = max(min(inventory_cursor, player_ptr->inventory->current_size - 1), 0);
@@ -180,7 +186,7 @@ int main()
                     clear_item_grid(item_grid);
                     clear_enemy_grid(enemy_grid);
                     set_item_spawns(rooms, item_grid, map);
-                    set_enemy_spawns(rooms, enemy_grid, map);
+                    set_enemy_spawns(rooms, enemy_grid, map, floor);
                     set_player_spawn(rooms, player_ptr);
                     print_new_floor(floor);
                     break;                    
@@ -257,7 +263,8 @@ void print_enemy_combat(int enemy_id)
 void display_user_info_line(player* p)
 {
     attron(COLOR_PAIR(1));
-    mvprintw(MAP_HEIGHT + MAP_HEIGHT_OFFSET, 0, "HP: %3d    Gold: %3d", p->health, p->gold);
+    mvprintw(MAP_HEIGHT + MAP_HEIGHT_OFFSET, 0, "HP: %3d    Gold: %3d    Level: %d (%d / %d exp)", p->health, p->gold,
+        p->level, p->exp, (int) pow(2, p->level + 1) );
     attroff(COLOR_PAIR(1));
 }
 
@@ -271,12 +278,12 @@ void set_player_spawn(room* rooms[], player* p)
     p->column = rand() % (right - 2 - r->corner_col) + r->corner_col + 1;
 }
 
-void set_enemy_spawns(room* rooms[], int* enemy_grid, char map[])
+void set_enemy_spawns(room* rooms[], int* enemy_grid, char map[], int floor)
 {
     for (int i = 0; i < ROOM_COUNT; i++) {
         room* r = rooms[i];
         // do we spawn an enemy here ?
-        if (rand() % 1 == 0) { // TODO change value
+        if (rand() % 3 == 0) { // TODO change value
             int right = r->corner_col + r->width;
             int bottom = r->corner_row + r->height;
             int r_row = rand() % (bottom - 1 - r->corner_row) + r->corner_row + 1;
@@ -284,8 +291,13 @@ void set_enemy_spawns(room* rooms[], int* enemy_grid, char map[])
             if (get_map_char(r_row, r_col, map) != OPEN_SPACE) {
                 continue;
             }
-            // TODO choose random enemy instead of just goblin
-            enemy_grid[r_row * MAP_WIDTH + r_col] = GOBLIN;
+            // TODO choose enemies based on floor difficulty
+            if (floor < 5)
+                enemy_grid[r_row * MAP_WIDTH + r_col] = GOBLIN;
+            else
+            {
+                enemy_grid[r_row * MAP_WIDTH + r_col] = 1 + (rand() % (NUM_ENEMIES - 1));
+            }
         }
     }
 }
@@ -307,9 +319,9 @@ void update_enemy_positions(player* p, int enemy_grid[], char map[])
                 int dist_from_player = sqrt(row_d*row_d + col_d*col_d);
 
                 int rand_factor = 4;
-                if (dist_from_player < 12)
+                if (dist_from_player < 7)
                 {
-                    rand_factor = 8;
+                    rand_factor = 16;
                 }
                 int r = rand() % rand_factor;
                 switch (r) {
@@ -524,8 +536,16 @@ void do_combat_sequence(player* p, int enemy_id, int* enemy_grid)
         "Block (%c)", BLOCK_KEY);
     bool battle_over = false;
     bool player_win = false;
-    char key = '\0';
-    int damage = 0;
+    char player_move_key = '\0';
+    int player_damage = 0;
+    int enemy_damage  = 0;
+
+    // amounts to reduce damage
+    int player_block_amount  = 0; 
+    int enemy_block_amount   = 0;
+
+    int enemy_move;
+    int player_move;
 
     while (!battle_over)
     {
@@ -536,51 +556,125 @@ void do_combat_sequence(player* p, int enemy_id, int* enemy_grid)
         mvprintw(center_row - q_row + 5, center_column - q_col + 2,
             "HP: %d AT: %d DF: %d", p->health, p->attack, p->defense);
 
-        key = getch();
-        switch (key)
+
+
+
+        enemy_move = rand() % 2;
+        player_move_key = getch();
+
+        // TODO - separate out into func
+        switch (player_move_key)
         {
-            // TODO add speed stat
-            case ATTACK_KEY:
+            case ATTACK_KEY: 
             case ATTACK_KEY + UPPER_TO_LOWER_CONV:
-                // Roll D(Player attack stat) 
-                // damage dealt = [random num between 0 and [attack stat]] + [attack stat / 2]
-                // damage = (rand() % ((int) (p->attack / 2))) + (int)(p->attack / 2);
-                damage = (rand() % (p->attack + 1)) + (int)((p->attack) / 2);
-                enemy_hp = max(enemy_hp - damage, 0);
-                attron(COLOR_PAIR(DAMAGE_MSG_COLOR));
-                mvprintw(center_row - q_row + 7, center_column - q_col + 2,
-                    "You dealt %d damage", damage);
-                damage = (rand() % (enemy_attack + 1)) + (int)((enemy_attack) / 2);
-                p->health = max(p->health - damage, 0);
-                mvprintw(center_row - q_row + 8, center_column - q_col + 2,
-                    "%s dealt %d damage", enemy_name, damage);
-                attroff(COLOR_PAIR(DAMAGE_MSG_COLOR));
-
-
-                if (enemy_hp <= 0)
-                {
-                    mvprintw(center_row - q_row + 3, center_column - q_col + 2,
-                        "HP: %d ATK: %d DEF: %d", enemy_hp, enemy_attack, enemy_defense);
-                    battle_over = true;
-                    player_win = true;
-                    mvprintw(center_row - q_row + 9, center_column - q_col + 2,
-                        "You defeated %s", enemy_name);
-
-                    // do item drop
-                }
+                player_move = ATTACK_MOVE;
                 break;
-            case BLOCK_KEY:
+            case BLOCK_KEY: 
             case BLOCK_KEY + UPPER_TO_LOWER_CONV:
-                // blocking enemy attack 
+                player_move = BLOCK_MOVE;
                 break;
+            default:
+                continue;
+                break;
+        }
+
+
+        // TODO - separate into modular funcs
+        // Damage dealt = [rnd num btwn 0 and [atk stat]] + [atk stat / 2]
+        //                - [rnd num between 0 and [opp. def stat / 3] ]
+
+        // i max defense / 3 with 1 to avoid div by 0 errors
+        // i max the whole thing with 0 to avoid 'negative' dmg
+
+        // Effect of blocking - subtract anywhere from 0 
+        // to 1/4 of (damage dealt + blocker defense)
+        // from total dmg dealt
+
+        player_damage = calc_damage_done(p->attack, enemy_defense);
+        enemy_damage  = calc_damage_done(enemy_attack, p->defense);
+
+
+        player_block_amount = rand() % max(( (enemy_damage + p->defense)     / 4), 1);
+        enemy_block_amount  = rand() % max(( (player_damage + enemy_defense) / 4), 1);
+
+        // set damages dealt based on each's moves
+
+        player_damage = 
+            (player_move == BLOCK_MOVE) ? 0 :
+                ((enemy_move == BLOCK_MOVE) ? player_damage - enemy_block_amount
+                                            : player_damage);
+
+        enemy_damage = 
+            (enemy_move == BLOCK_MOVE) ? 0 :
+                ((player_move == BLOCK_MOVE) ? enemy_damage - player_block_amount
+                                            : enemy_damage);
+
+        
+        // TODO - add speed stat to decide who goes first. for now,
+        // player always goes first
+        attron(COLOR_PAIR(DAMAGE_MSG_COLOR));
+        switch (player_move)
+        {
+            case ATTACK_MOVE:
+                enemy_hp = max(enemy_hp - player_damage, 0);
+
+                mvprintw(center_row - q_row + 7, center_column - q_col + 2,
+                    "You dealt %d damage", player_damage);
+                
+                break;
+            case BLOCK_MOVE:
+                mvprintw(center_row - q_row + 7, center_column - q_col + 2,
+                    "You blocked         ");
+                break;
+            default:
+                break;
+        }
+
+        switch(enemy_move)
+        {
+            case ATTACK_MOVE:
+                p->health = max(p->health - enemy_damage, 0);
+                mvprintw(center_row - q_row + 8, center_column - q_col + 2,
+                    "%s dealt %d damage", enemy_name, enemy_damage);
+                break;
+            case BLOCK_MOVE:
+                mvprintw(center_row - q_row + 8, center_column - q_col + 2,
+                    "%s blocked        ", enemy_name);
+                break;
+            default:
+                break;
+        }
+        attroff(COLOR_PAIR(DAMAGE_MSG_COLOR));
+
+        if (enemy_hp <= 0)
+        {
+            mvprintw(center_row - q_row + 3, center_column - q_col + 2,
+                "HP: %d ATK: %d DEF: %d", enemy_hp, enemy_attack, enemy_defense);
+            battle_over = true;
+            player_win = true;
+            mvprintw(center_row - q_row + 9, center_column - q_col + 2,
+                "You defeated %s", enemy_name);
+            int exp_gained = rand() % max(1, (enemy_attack + enemy_defense) / 2) 
+                + (enemy_attack + enemy_defense) / 2;
+            p->exp += exp_gained;
+            if (p->exp > (int)(pow(2, p->level + 1)))
+            {
+                p->exp -= (int)(pow(2, p->level + 1));
+                p->level += 1;
+            }
+            move(0, 0);
+            clrtoeol();
+            attron(COLOR_PAIR(5));
+            mvprintw(0, 0, "You defeated the %s! Gained %d exp", enemy_combat_data[enemy_id].name,
+                exp_gained);
+            attroff(COLOR_PAIR(5));
+            // do item drop
         }
     }
     if (player_win)
     {
         enemy_grid[p->row * MAP_WIDTH + p->column] = NULL_ENEMY_ID;
     }
-
-    
 }
 
 void display_stats(player* p)
@@ -594,7 +688,7 @@ void display_stats(player* p)
     curse_print(center_row - q_row + 1, center_column - STATS_TEXT_OFFSET,
         "~Stats~", INVENTORY_SCREEN_COLOR);
     mvprintw(center_row - q_row + 2, center_column - q_col + 2, 
-        "LEVEL:    %d", p->level);
+        "LEVEL:    %d (%d / %d exp) ", p->level, p->exp, (int) pow(2, p->level + 1));
     mvprintw(center_row - q_row + 3, center_column - q_col + 2, 
         "ATTACK:   %d", p->attack);
     mvprintw(center_row - q_row + 4, center_column - q_col + 2, 
@@ -764,3 +858,16 @@ void clear_enemy_grid(int enemy_grid[])
         enemy_grid[i] = NULL_ENEMY_ID;
     }
 }
+
+
+
+// Damage dealt = [rnd num btwn 0 and [atk stat]] + [atk stat / 2]
+//                - [rnd num between 0 and [opp. def stat / 3] ]
+int calc_damage_done(int attacker_attack, int defender_defense)
+{
+    return  max((rand() % (attacker_attack + 1)) + (int)((attacker_attack) / 2)
+            - (rand() % max(defender_defense / 3, 1)), 0);   
+}
+
+
+

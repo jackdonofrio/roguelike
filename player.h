@@ -1,6 +1,6 @@
 #include "items.h"
 
-#define DEFAULT_MAX_HEALTH 100
+#define DEFAULT_MAX_HEALTH 20
 
 typedef struct player
 {
@@ -15,6 +15,7 @@ typedef struct player
 
     // stats
     int level;
+    int exp;
     int attack;
     int defense;
 

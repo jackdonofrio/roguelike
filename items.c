@@ -37,17 +37,3 @@ int remove_item(inventory_t* inventory, int index)
     inventory->current_size--;
     return item_id;
 }
-
-// food HP LUT
-int calc_food_hp_boost(int item_id)
-{
-    switch (item_id) {
-        
-        // lowest healing tier: +5 HP
-        case APPLE:
-        case BREAD:
-            return BASIC_HEALTH_BOOST;
-        default:
-            return 0;
-    }
-}

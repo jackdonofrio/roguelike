@@ -5,7 +5,7 @@
 
 #define MAX_INVENTORY_SIZE 10
 
-#define DROP_RATE_PER_ROOM 1 // 1 over N odds that an item drops in a given room
+#define DROP_RATE_PER_ROOM 2 // 1 over N odds that an item drops in a given room
 
 
 // item id's
@@ -21,8 +21,8 @@
 #define APPLE              8
 // misc weapons
 #define STICK              9
+#define MAGIC_STAFF        10
 /////////////////////////////
-#define NUM_ITEMS         10
 
 // item colors
 #define COMMON_ITEM_COLOR  1
@@ -55,6 +55,8 @@ typedef struct {
     };
 } item;
 
+#define NUM_ITEMS         11
+
 static item item_data[NUM_ITEMS] = {
     {"None",               NONE,        1, .attack        = 1}, // fists have attack = 1
     {"Bronze sword",       WEAPON,      1, .attack        = 3},
@@ -65,7 +67,8 @@ static item item_data[NUM_ITEMS] = {
     {"Iron helm",          HELM,        5, .defense       = 3},
     {"Bread",              FOOD,        1, .health_points = BASIC_HEALTH_BOOST},
     {"Apple",              FOOD,        1, .health_points = BASIC_HEALTH_BOOST},
-    {"Stick",              WEAPON,      1, .attack        = 2}
+    {"Stick",              WEAPON,      1, .attack        = 2},
+    {"Magic staff",        WEAPON,      2, .attack        = 3},
 };
 
 
@@ -78,6 +81,5 @@ typedef struct inventory
 bool full_inventory(inventory_t* inventory);
 void add_item(inventory_t* inventory, int item_id);
 int remove_item(inventory_t* inventory, int index);
-int calc_food_hp_boost(int item_id);
 
 #endif /* ITEMS_H*/
