@@ -16,11 +16,20 @@
 #include "enemy.h"
 #include "player.h"
 
+#define     WHITE_TEXT_COLOR  0
+#define     CYAN_TEXT_COLOR   1
+#define     GREEN_TEXT_COLOR  2
+#define     RED_TEXT_COLOR    3
+#define     BLUE_TEXT_COLOR   4
+#define    YELLOW_TEXT_COLOR  5
+#define   MAGENTA_TEXT_COLOR  6
+#define HIGHLIGHT_TEXT_COLOR 40
+
+
 #define ESCAPE_ASCII 27
 #define INVENTORY_SCREEN_COLOR 5
 #define INVENTORY_TEXT_OFFSET 6
 #define STATS_TEXT_OFFSET 4
-#define HIGHLIGHT_TEXT_COLOR 40
 #define STEP_HEALTH_LOSS 1
 #define MAP_HEIGHT_OFFSET 1
 #define MAP_BOTTOM (MAP_HEIGHT + MAP_HEIGHT_OFFSET)
@@ -42,7 +51,6 @@
 // #define
 
 void setup_ncurses();
-void write_map_curse(char map[], int item_grid[], int enemy_grid[]);
 void curse_put(int row, int col, char c, int color);
 void curse_print(int row, int column, const char* message, int color);
 void curse_clear_lines(int start_row, int inclusive_end_row, int column);
@@ -50,12 +58,18 @@ char handle_map_keypress(player* player_ptr, char key, char map[], int item_grid
     int enemy_grid[]);
 char handle_walk_key(player* player_ptr, char map[], int row_change, int col_change, 
     int item_grid[], int enemy_grid[]);
+
 void display_inventory(player* p, int inventory_cursor);
+void do_inventory_event(player* p, int* inventory_cursor_ptr, char key, int* item_grid);
+
 void display_stats(player* p);
 void calc_player_stats(player* p);
 
 void display_equipment(player* p);
 void display_center_box();
+
+void write_map_curse(char map[], int item_grid[], int enemy_grid[]);
+// void do_map_screen_event(char map[], )
 
 void do_combat_sequence(player* p, int enemy_id, int* enemy_grid);
 int calc_damage_done(int attacker_attack, int defender_defense);
@@ -63,7 +77,8 @@ int calc_damage_done(int attacker_attack, int defender_defense);
 
 void set_player_spawn(room* rooms[], player* p);
 void set_item_spawns(room* rooms[], int item_grid[], char map[]);
-void set_enemy_spawns(room* rooms[], int enemy_grid[], char map[], int floor);
+void set_enemy_spawns(room* rooms[], int enemy_grid[], char map[], int floor, int item_grid[]);
+int pick_enemy(int floor);
 void update_enemy_positions(player* p, int enemy_grid[], char map[]);
 
 void equip_item(player* player_ptr, int* equipment_piece, int inventory_cursor, int item_id);
@@ -75,6 +90,7 @@ void clear_enemy_grid(int enemy_grid[]);
 
 
 // status line messages
+void clear_status_line();
 void print_item_pickup(int item_id);
 void print_new_floor(int floor);
 void print_item_min_level(int item_id);
@@ -99,16 +115,16 @@ int main()
     rooms_gen(rooms);
     map_gen(rooms, floor, map); 
     set_item_spawns(rooms, item_grid, map);
-    set_enemy_spawns(rooms, enemy_grid, map, floor);
+    set_enemy_spawns(rooms, enemy_grid, map, floor, item_grid);
     set_player_spawn(rooms, player_ptr);
         
     setup_ncurses();
     write_map_curse(map, item_grid, enemy_grid);
     display_player_char(player_ptr);
     display_user_info_line(player_ptr);
-    curse_print(MAP_BOTTOM + 1, 0, "Inventory (E)", HIGHLIGHT_TEXT_COLOR);
-    curse_print(MAP_BOTTOM + 1, 20, "Equipment (T)", HIGHLIGHT_TEXT_COLOR);
-    curse_print(MAP_BOTTOM + 1, 40, "Stats (R)", HIGHLIGHT_TEXT_COLOR);
+    curse_print(MAP_BOTTOM + 1, 0, "Inventory [E]", HIGHLIGHT_TEXT_COLOR);
+    curse_print(MAP_BOTTOM + 1, 20, "Equipment [T]", HIGHLIGHT_TEXT_COLOR);
+    curse_print(MAP_BOTTOM + 1, 40, "Stats [R]", HIGHLIGHT_TEXT_COLOR);
 
     char key;
     while ((key = getch()) != 'q') {
@@ -121,60 +137,14 @@ int main()
             current_screen = (current_screen == STATS_SCREEN) ? MAP_SCREEN : STATS_SCREEN;
         }
         if (current_screen == INVENTORY_SCREEN) {
-            int item_id = player_ptr->inventory->items[inventory_cursor];
-            switch (key) {
-                case 'w': case 'W':
-                    inventory_cursor = max(0, inventory_cursor - 1);
-                    break;
-                case 's': case 'S':
-                    inventory_cursor = min(player_ptr->inventory->current_size - 1, inventory_cursor + 1);
-                    break;
-                case 'z': case 'Z':
-                    if (item_grid[player_ptr->row * MAP_WIDTH + player_ptr->column] == NULL_ITEM_ID) {
-                        remove_item(player_ptr->inventory, inventory_cursor);
-                        item_grid[player_ptr->row * MAP_WIDTH + player_ptr->column] = item_id;
-                        inventory_cursor = max(min(inventory_cursor, player_ptr->inventory->current_size - 1), 0);
-                    }
-                    break;
-                case 'f': case 'F':
-                    switch (item_data[item_id].type) {
-                        case FOOD:
-                            remove_item(player_ptr->inventory, inventory_cursor);
-                            int health_boost = item_data[item_id].health_points;
-                            player_ptr->health = min(DEFAULT_MAX_HEALTH, player_ptr->health + health_boost);
-                            // so the cursor doesn't go out of bounds, we do the following
-                            inventory_cursor = max(min(inventory_cursor, player_ptr->inventory->current_size - 1), 0);
-                            break;
-                        case HELM:
-                            equip_item(player_ptr, &(player_ptr->helm), inventory_cursor, item_id);
-                            inventory_cursor = max(min(inventory_cursor, player_ptr->inventory->current_size - 1), 0);
-                            break;
-                        case BREASTPLATE:
-                            equip_item(player_ptr, &(player_ptr->breastplate), inventory_cursor, item_id);
-                            inventory_cursor = max(min(inventory_cursor, player_ptr->inventory->current_size - 1), 0);
-                            break;
-                        case GREAVES:
-                            equip_item(player_ptr, &(player_ptr->greaves), inventory_cursor, item_id);
-                            inventory_cursor = max(min(inventory_cursor, player_ptr->inventory->current_size - 1), 0);
-                            break;
-                        case WEAPON:
-                            equip_item(player_ptr, &(player_ptr->weapon), inventory_cursor, item_id);
-                            inventory_cursor = max(min(inventory_cursor, player_ptr->inventory->current_size - 1), 0);
-                            break;
-                        case SHIELD:
-                            equip_item(player_ptr, &(player_ptr->shield), inventory_cursor, item_id);
-                            inventory_cursor = max(min(inventory_cursor, player_ptr->inventory->current_size - 1), 0);
-                            break;
-                    }
-                    break;
-            }
-            display_inventory(player_ptr, inventory_cursor);
+            do_inventory_event(player_ptr, &inventory_cursor, key, item_grid);
         } else if (current_screen == EQUIPMENT_SCREEN) {
             display_equipment(player_ptr);
         } else if (current_screen == STATS_SCREEN) {
             display_stats(player_ptr);
         }
         else if (current_screen == MAP_SCREEN) {
+            // TODO modularize
             switch (handle_map_keypress(player_ptr, key, map, item_grid, enemy_grid)) {
                 case 0:
                     break;
@@ -185,8 +155,12 @@ int main()
                     map_gen(rooms, ++floor, map); 
                     clear_item_grid(item_grid);
                     clear_enemy_grid(enemy_grid);
+
+                    // if new floor is divisible by 5, spawn a merchant
+                    // TODO
+
                     set_item_spawns(rooms, item_grid, map);
-                    set_enemy_spawns(rooms, enemy_grid, map, floor);
+                    set_enemy_spawns(rooms, enemy_grid, map, floor, item_grid);
                     set_player_spawn(rooms, player_ptr);
                     print_new_floor(floor);
                     break;                    
@@ -219,53 +193,55 @@ int main()
     return 0;
 }
 
-void print_item_pickup(int item_id)
+void clear_status_line()
 {
     move(0, 0);
-    clrtoeol();
-    attron(COLOR_PAIR(5));
+    clrtoeol();   
+}
+
+void print_item_pickup(int item_id)
+{
+    clear_status_line();
+    attron(COLOR_PAIR(YELLOW_TEXT_COLOR));
     const int offset = 14;
     mvprintw(0, 0, "You picked up ");
     // later, print color based on item rarity
-    attroff(COLOR_PAIR(5));
-    attron(COLOR_PAIR(6));
+    attroff(COLOR_PAIR(YELLOW_TEXT_COLOR));
+    attron(COLOR_PAIR(MAGENTA_TEXT_COLOR));
     mvprintw(0, offset, "%s", item_data[item_id].name);
-    attroff(COLOR_PAIR(6));
+    attroff(COLOR_PAIR(MAGENTA_TEXT_COLOR));
 }
 
 void print_new_floor(int floor)
 {
-    move(0, 0);
-    clrtoeol();
-    attron(COLOR_PAIR(5));
-    mvprintw(0, 0, "You entered Floor %d", floor);
-    attroff(COLOR_PAIR(5));
+    clear_status_line();
+    attron(COLOR_PAIR(YELLOW_TEXT_COLOR));
+    mvprintw(0, 0, "You entered Floor %d.", floor);
+    attroff(COLOR_PAIR(YELLOW_TEXT_COLOR));
 }
 
 void print_item_min_level(int item_id)
 {
-    move(0, 0);
-    clrtoeol();
-    attron(COLOR_PAIR(5));
+    clear_status_line();
+    attron(COLOR_PAIR(YELLOW_TEXT_COLOR));
     mvprintw(0, 0, "You must be level %d to equip %s", 
         item_data[item_id].min_level, item_data[item_id].name);
-    attroff(COLOR_PAIR(5));
+    attroff(COLOR_PAIR(YELLOW_TEXT_COLOR));
 }
 void print_enemy_combat(int enemy_id)
 {
-    move(0, 0);
-    clrtoeol();
-    attron(COLOR_PAIR(5));
+    clear_status_line();
+    attron(COLOR_PAIR(YELLOW_TEXT_COLOR));
     mvprintw(0, 0, "You are battling a %s!", enemy_combat_data[enemy_id].name);
-    attroff(COLOR_PAIR(5));
+    attroff(COLOR_PAIR(YELLOW_TEXT_COLOR));
 }
 
 void display_user_info_line(player* p)
 {
-    attron(COLOR_PAIR(1));
+    attron(COLOR_PAIR(CYAN_TEXT_COLOR));
     mvprintw(MAP_HEIGHT + MAP_HEIGHT_OFFSET, 0, "HP: %3d    Gold: %3d    Level: %d (%d / %d exp)", p->health, p->gold,
         p->level, p->exp, (int) pow(2, p->level + 1) );
-    attroff(COLOR_PAIR(1));
+    attroff(COLOR_PAIR(CYAN_TEXT_COLOR));
 }
 
 
@@ -278,26 +254,31 @@ void set_player_spawn(room* rooms[], player* p)
     p->column = rand() % (right - 2 - r->corner_col) + r->corner_col + 1;
 }
 
-void set_enemy_spawns(room* rooms[], int* enemy_grid, char map[], int floor)
+int pick_enemy(int floor)
+{
+    // TODO - choose based on floor difficulty
+    if (floor < 5)
+    {
+        return GOBLIN;
+    }
+    return 1 + (rand() % (NUM_ENEMIES - 1));
+}
+
+void set_enemy_spawns(room* rooms[], int* enemy_grid, char map[], int floor, int* item_grid)
 {
     for (int i = 0; i < ROOM_COUNT; i++) {
         room* r = rooms[i];
         // do we spawn an enemy here ?
-        if (rand() % 3 == 0) { // TODO change value
+        if (rand() % ENEMY_SPAWN_RATE == 0) {
             int right = r->corner_col + r->width;
             int bottom = r->corner_row + r->height;
             int r_row = rand() % (bottom - 1 - r->corner_row) + r->corner_row + 1;
             int r_col = rand() % (right - 2 - r->corner_col) + r->corner_col + 1;
-            if (get_map_char(r_row, r_col, map) != OPEN_SPACE) {
+            if (get_map_char(r_row, r_col, map) != OPEN_SPACE
+                || item_grid[r_row * MAP_WIDTH + r_col] != NULL_ITEM_ID) {
                 continue;
             }
-            // TODO choose enemies based on floor difficulty
-            if (floor < 5)
-                enemy_grid[r_row * MAP_WIDTH + r_col] = GOBLIN;
-            else
-            {
-                enemy_grid[r_row * MAP_WIDTH + r_col] = 1 + (rand() % (NUM_ENEMIES - 1));
-            }
+            enemy_grid[r_row * MAP_WIDTH + r_col] = pick_enemy(floor);
         }
     }
 }
@@ -348,6 +329,7 @@ void update_enemy_positions(player* p, int enemy_grid[], char map[])
                         }
                         break;
                 }
+
                 int new_row = i + row_change;
                 int new_col = j + col_change;
 
@@ -355,7 +337,13 @@ void update_enemy_positions(player* p, int enemy_grid[], char map[])
                     && enemy_grid[new_row * MAP_WIDTH + new_col] == NULL_ENEMY_ID)
                 {
                     enemy_grid[new_row * MAP_WIDTH + new_col] = enemy_grid[i * MAP_WIDTH + j];
-                    enemy_grid[i * MAP_WIDTH + j] = NULL_ITEM_ID;
+                    enemy_grid[i * MAP_WIDTH + j] = NULL_ENEMY_ID;
+
+                    // clear_status_line();
+                    // attron(COLOR_PAIR(YELLOW_TEXT_COLOR));
+                    // mvprintw(0, 0, "r delta: %d -> %d || c delta: %d -> %d ", i, new_row, j, new_col );
+                    // attroff(COLOR_PAIR(YELLOW_TEXT_COLOR));
+
                 }
             }
         }
@@ -507,33 +495,25 @@ void do_combat_sequence(player* p, int enemy_id, int* enemy_grid)
     curse_print(center_row - q_row + 1, center_column - STATS_TEXT_OFFSET,
         "~Combat~", INVENTORY_SCREEN_COLOR);
 
-    attron(COLOR_PAIR(1));
+    attron(COLOR_PAIR(CYAN_TEXT_COLOR));
     mvprintw(center_row - q_row + 2, center_column - q_col + 2,
         "%s", enemy_name);
     mvprintw(center_row - q_row + 4, center_column - q_col + 2,
         "Player");
+    attroff(COLOR_PAIR(CYAN_TEXT_COLOR));
 
-    attroff(COLOR_PAIR(1));
-
-    char* weapon_name;
-    if (p->weapon == NULL_ITEM_ID)
-    {
-        weapon_name = "Fists";
-    }
-    else
-    {
-        weapon_name = item_data[p->weapon].name;
-    }
+    char* weapon_name = (p->weapon == NULL_ITEM_ID) ?  "Fists"
+        : item_data[p->weapon].name;
 
     mvprintw(center_row - q_row + 6, center_column - q_col + 2,
         "Weapon: %s", weapon_name);
     
     int bottom_text_offset = 2;
     mvprintw(center_row + q_row - 1, center_column - q_col + bottom_text_offset, 
-        "Attack (%c)", ATTACK_KEY);
+        "Attack [%c]", ATTACK_KEY);
     bottom_text_offset += 11;
     mvprintw(center_row + q_row - 1, center_column - q_col + bottom_text_offset, 
-        "Block (%c)", BLOCK_KEY);
+        "Block [%c]", BLOCK_KEY);
     bool battle_over = false;
     bool player_win = false;
     char player_move_key = '\0';
@@ -601,12 +581,12 @@ void do_combat_sequence(player* p, int enemy_id, int* enemy_grid)
 
         player_damage = 
             (player_move == BLOCK_MOVE) ? 0 :
-                ((enemy_move == BLOCK_MOVE) ? player_damage - enemy_block_amount
+                ((enemy_move == BLOCK_MOVE) ? max(player_damage - enemy_block_amount, 0)
                                             : player_damage);
 
         enemy_damage = 
             (enemy_move == BLOCK_MOVE) ? 0 :
-                ((player_move == BLOCK_MOVE) ? enemy_damage - player_block_amount
+                ((player_move == BLOCK_MOVE) ? max(enemy_damage - player_block_amount, 0)
                                             : enemy_damage);
 
         
@@ -646,6 +626,10 @@ void do_combat_sequence(player* p, int enemy_id, int* enemy_grid)
         }
         attroff(COLOR_PAIR(DAMAGE_MSG_COLOR));
 
+
+        // TODO add player defeat
+
+
         if (enemy_hp <= 0)
         {
             mvprintw(center_row - q_row + 3, center_column - q_col + 2,
@@ -657,17 +641,21 @@ void do_combat_sequence(player* p, int enemy_id, int* enemy_grid)
             int exp_gained = rand() % max(1, (enemy_attack + enemy_defense) / 2) 
                 + (enemy_attack + enemy_defense) / 2;
             p->exp += exp_gained;
-            if (p->exp > (int)(pow(2, p->level + 1)))
+            if (p->exp >= (int)(pow(2, p->level + 1)))
             {
                 p->exp -= (int)(pow(2, p->level + 1));
                 p->level += 1;
+                p->health += 1;
+                p->max_health += 1;
             }
-            move(0, 0);
-            clrtoeol();
-            attron(COLOR_PAIR(5));
-            mvprintw(0, 0, "You defeated the %s! Gained %d exp", enemy_combat_data[enemy_id].name,
-                exp_gained);
-            attroff(COLOR_PAIR(5));
+            int gold_dropped = rand() % max(1, (enemy_attack + enemy_defense) / 2) 
+                + (enemy_attack + enemy_defense) / 3;
+            p->gold += gold_dropped;
+            clear_status_line();
+            attron(COLOR_PAIR(YELLOW_TEXT_COLOR));
+            mvprintw(0, 0, "You defeated the %s! Gained %d exp and %d gold.", enemy_combat_data[enemy_id].name,
+                exp_gained, gold_dropped);
+            attroff(COLOR_PAIR(YELLOW_TEXT_COLOR));
             // do item drop
         }
     }
@@ -735,7 +723,7 @@ void display_inventory(player* p, int inventory_cursor)
     int item_id = p->inventory->items[inventory_cursor];
     switch (item_data[item_id].type) {
         case FOOD:
-            mvprintw(center_row + q_row - 1, center_column - q_col + bottom_text_offset, "Eat (F)");
+            mvprintw(center_row + q_row - 1, center_column - q_col + bottom_text_offset, "Eat [F]");
             bottom_text_offset += 8;
             break;
         case HELM:
@@ -743,12 +731,12 @@ void display_inventory(player* p, int inventory_cursor)
         case GREAVES:
         case WEAPON:
         case SHIELD:
-            mvprintw(center_row + q_row - 1, center_column - q_col + bottom_text_offset, "Equip (F)");
+            mvprintw(center_row + q_row - 1, center_column - q_col + bottom_text_offset, "Equip [F]");
             bottom_text_offset += 10;
             break;
     }
     if (p->inventory->current_size > 0) {
-        mvprintw(center_row + q_row - 1, center_column - q_col + bottom_text_offset, "Drop (Z)");
+        mvprintw(center_row + q_row - 1, center_column - q_col + bottom_text_offset, "Drop [Z]");
     }
 
     // display items
@@ -764,6 +752,78 @@ void display_inventory(player* p, int inventory_cursor)
         }
     }
 }
+
+void do_inventory_event(player* player_ptr, int* inventory_cursor_ptr, char key, int* item_grid)
+{
+    // TODO - make key presses happen only in here
+    int inventory_cursor = (*inventory_cursor_ptr);
+    int item_id = player_ptr->inventory->items[inventory_cursor];
+    switch (key) {
+        case 'w': case 'W':
+            inventory_cursor = max(0, inventory_cursor - 1);
+            break;
+        case 's': case 'S':
+            inventory_cursor = min(player_ptr->inventory->current_size - 1, inventory_cursor + 1);
+            break;
+        case 'z': case 'Z':
+            {
+                int floor_item = item_grid[player_ptr->row * MAP_WIDTH + player_ptr->column];
+                if (floor_item == NULL_ITEM_ID) {
+                    remove_item(player_ptr->inventory, inventory_cursor);
+                    item_grid[player_ptr->row * MAP_WIDTH + player_ptr->column] = item_id;
+                    inventory_cursor = max(min(inventory_cursor, player_ptr->inventory->current_size - 1), 0);
+                } 
+                else
+                {
+                    clear_status_line();
+                    attron(COLOR_PAIR(YELLOW_TEXT_COLOR));
+                    const int offset = 25;
+                    mvprintw(0, 0, "Cannot drop! Standing on");
+                    // later, print color based on item rarity
+                    attroff(COLOR_PAIR(YELLOW_TEXT_COLOR));
+                    attron(COLOR_PAIR(MAGENTA_TEXT_COLOR));
+                    mvprintw(0, offset, "%s", item_data[floor_item].name);
+                    attroff(COLOR_PAIR(MAGENTA_TEXT_COLOR));
+                }
+                break;
+            }
+        case 'f': case 'F':
+            switch (item_data[item_id].type) {
+                case FOOD:
+                    remove_item(player_ptr->inventory, inventory_cursor);
+                    int health_boost = item_data[item_id].health_points;
+                    player_ptr->health = min(player_ptr->max_health, player_ptr->health + health_boost);
+                    // so the cursor doesn't go out of bounds, we do the following
+                    inventory_cursor = max(min(inventory_cursor, player_ptr->inventory->current_size - 1), 0);
+                    break;
+                case HELM:
+                    equip_item(player_ptr, &(player_ptr->helm), inventory_cursor, item_id);
+                    inventory_cursor = max(min(inventory_cursor, player_ptr->inventory->current_size - 1), 0);
+                    break;
+                case BREASTPLATE:
+                    equip_item(player_ptr, &(player_ptr->breastplate), inventory_cursor, item_id);
+                    inventory_cursor = max(min(inventory_cursor, player_ptr->inventory->current_size - 1), 0);
+                    break;
+                case GREAVES:
+                    equip_item(player_ptr, &(player_ptr->greaves), inventory_cursor, item_id);
+                    inventory_cursor = max(min(inventory_cursor, player_ptr->inventory->current_size - 1), 0);
+                    break;
+                case WEAPON:
+                    equip_item(player_ptr, &(player_ptr->weapon), inventory_cursor, item_id);
+                    inventory_cursor = max(min(inventory_cursor, player_ptr->inventory->current_size - 1), 0);
+                    break;
+                case SHIELD:
+                    equip_item(player_ptr, &(player_ptr->shield), inventory_cursor, item_id);
+                    inventory_cursor = max(min(inventory_cursor, player_ptr->inventory->current_size - 1), 0);
+                    break;
+            }
+            break;
+    }
+    display_inventory(player_ptr, inventory_cursor);
+    (*inventory_cursor_ptr) = inventory_cursor;
+}
+
+
 
 void curse_print(int row, int column, const char* message, int color)
 {
@@ -786,13 +846,13 @@ void setup_ncurses()
     init_pair(ITEM_SYMBOL, COLOR_GREEN, COLOR_BLACK);
     init_pair(ENEMY_SYMBOL, COLOR_WHITE, COLOR_RED);
 
-    init_pair(0, COLOR_WHITE, COLOR_BLACK);
-    init_pair(1, COLOR_CYAN, COLOR_BLACK);
-    init_pair(2, COLOR_GREEN, COLOR_BLACK);
-    init_pair(3, COLOR_RED, COLOR_BLACK);
-    init_pair(4, COLOR_BLUE, COLOR_BLACK);
-    init_pair(5, COLOR_YELLOW, COLOR_BLACK);
-    init_pair(6, COLOR_MAGENTA, COLOR_BLACK);
+    init_pair(WHITE_TEXT_COLOR, COLOR_WHITE, COLOR_BLACK);
+    init_pair(CYAN_TEXT_COLOR, COLOR_CYAN, COLOR_BLACK);
+    init_pair(GREEN_TEXT_COLOR, COLOR_GREEN, COLOR_BLACK);
+    init_pair(RED_TEXT_COLOR, COLOR_RED, COLOR_BLACK);
+    init_pair(BLUE_TEXT_COLOR, COLOR_BLUE, COLOR_BLACK);
+    init_pair(YELLOW_TEXT_COLOR, COLOR_YELLOW, COLOR_BLACK);
+    init_pair(MAGENTA_TEXT_COLOR, COLOR_MAGENTA, COLOR_BLACK);
     init_pair('!', COLOR_BLACK, COLOR_RED);
     init_pair(HIGHLIGHT_TEXT_COLOR, COLOR_BLACK, COLOR_WHITE);
     // init_pair('?', COLOR_BLUE, COLOR_GREEN);

@@ -10,6 +10,7 @@ typedef struct player
 
 
     // data
+    int max_health;
     int health; // integer from 0 to 100
     int gold;
 

@@ -3,6 +3,7 @@
 // note - any individual enemy's stats only
 // matter once you enter combat
 
+#define ENEMY_SPAWN_RATE 3 // 1 / N = likelihood of enemy spawning in room
 #define ENEMY_SYMBOL '^'
 #define NULL_ENEMY_ID 0
 #define GOBLIN		  1

@@ -31,6 +31,7 @@ player* player_init()
     p->weapon = NULL_ITEM_ID;
     p->shield = NULL_ITEM_ID;
 
+    p->max_health = DEFAULT_MAX_HEALTH;
     p->health = DEFAULT_MAX_HEALTH; 
     p->gold = 0;
     

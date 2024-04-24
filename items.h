@@ -5,23 +5,11 @@
 
 #define MAX_INVENTORY_SIZE 10
 
-#define DROP_RATE_PER_ROOM 2 // 1 over N odds that an item drops in a given room
+#define DROP_RATE_PER_ROOM 4 // 1 over N odds that an item drops in a given room
 
 
 // item id's
 #define NULL_ITEM_ID       0
-#define BRONZE_SWORD       1
-#define BRONZE_HELM        2
-#define BRONZE_BREASTPLATE 3
-#define BRONZE_GREAVES     4
-#define BRONZE_SHIELD      5
-#define IRON_HELM          6
-// food
-#define BREAD              7
-#define APPLE              8
-// misc weapons
-#define STICK              9
-#define MAGIC_STAFF        10
 /////////////////////////////
 
 // item colors
@@ -56,9 +44,8 @@ typedef struct {
 } item;
 
 #define NUM_ITEMS         11
-
 static item item_data[NUM_ITEMS] = {
-    {"None",               NONE,        1, .attack        = 1}, // fists have attack = 1
+    {"----",               NONE,        1, .attack        = 1}, // fists have attack = 1
     {"Bronze sword",       WEAPON,      1, .attack        = 3},
     {"Bronze helm",        HELM,        1, .defense       = 2},
     {"Bronze breastplate", BREASTPLATE, 1, .defense       = 4},
@@ -68,7 +55,8 @@ static item item_data[NUM_ITEMS] = {
     {"Bread",              FOOD,        1, .health_points = BASIC_HEALTH_BOOST},
     {"Apple",              FOOD,        1, .health_points = BASIC_HEALTH_BOOST},
     {"Stick",              WEAPON,      1, .attack        = 2},
-    {"Magic staff",        WEAPON,      2, .attack        = 3},
+    {"Magic staff",        WEAPON,      2, .attack        = 3}//,
+    // {""}
 };
 
 
