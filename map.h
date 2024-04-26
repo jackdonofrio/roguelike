@@ -10,12 +10,15 @@ including room generation
 #define MAP_HEIGHT 28
 #define ROOM_COUNT 4
 
+#define MAX_VISION_DISTANCE 5
+
 // map symbols
 #define PLAYER_SYMBOL '@'
 #define ITEM_SYMBOL '?'
 #define WALL '#'
 #define OPEN_SPACE '.'
 #define STAIR '%'
+#define EMPTY_VOID ' '
 
 // useful macros
 // #define min(a,b) (((a) < (b)) ? (a) : (b))
@@ -52,6 +55,4 @@ void map_gen(room* rooms[], int level, char map[]);
 char can_step(char map[], int row, int column);
 void update_visibility(char* map, bool visible[], int row, int column);
 
-// bool is_visible(char* map, int player_row, int player_col, int row, int column);
-// bool visible_helper_straight(char* map, int player_row, int player_col, int row, int column);
-// bool can_see_through(char* map, int r, int c);
+bool is_visible(char* map, int player_row, int player_col, int row, int column);

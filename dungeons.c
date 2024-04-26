@@ -68,7 +68,7 @@ void calc_player_stats(player* p);
 void display_equipment(player* p);
 void display_center_box();
 
-void write_map_curse(char map[], int item_grid[], int enemy_grid[]);
+void write_map_curse(char map[], int item_grid[], int enemy_grid[], bool visibility_grid[]);
 // void do_map_screen_event(char map[], )
 
 void do_combat_sequence(player* p, int enemy_id, int* enemy_grid);
@@ -80,6 +80,7 @@ void set_item_spawns(room* rooms[], int item_grid[], char map[]);
 void set_enemy_spawns(room* rooms[], int enemy_grid[], char map[], int floor, int item_grid[]);
 int pick_enemy(int floor);
 void update_enemy_positions(player* p, int enemy_grid[], char map[]);
+void update_visiblity_grid(bool visibility_grid[], char* map, player* p);
 
 void equip_item(player* player_ptr, int* equipment_piece, int inventory_cursor, int item_id);
 void display_user_info_line(player* p);
@@ -87,7 +88,7 @@ void display_player_char(player* p);
 
 void clear_item_grid(int item_grid[]);
 void clear_enemy_grid(int enemy_grid[]);
-
+void clear_visibility_grid(bool visibility_grid[]);
 
 // status line messages
 void clear_status_line();
@@ -105,8 +106,10 @@ int main()
     room* rooms[ROOM_COUNT];
     int item_grid[MAP_WIDTH * MAP_HEIGHT];
     int enemy_grid[MAP_WIDTH * MAP_HEIGHT];
+    bool visibility_grid[MAP_WIDTH * MAP_HEIGHT];
     clear_item_grid(item_grid);
     clear_enemy_grid(enemy_grid);
+    clear_visibility_grid(visibility_grid);
 
     int floor = 1;
     char current_screen = MAP_SCREEN;
@@ -117,9 +120,10 @@ int main()
     set_item_spawns(rooms, item_grid, map);
     set_enemy_spawns(rooms, enemy_grid, map, floor, item_grid);
     set_player_spawn(rooms, player_ptr);
+    update_visiblity_grid(visibility_grid, map, player_ptr);
         
     setup_ncurses();
-    write_map_curse(map, item_grid, enemy_grid);
+    write_map_curse(map, item_grid, enemy_grid, visibility_grid);
     display_player_char(player_ptr);
     display_user_info_line(player_ptr);
     curse_print(MAP_BOTTOM + 1, 0, "Inventory [E]", HIGHLIGHT_TEXT_COLOR);
@@ -155,6 +159,7 @@ int main()
                     map_gen(rooms, ++floor, map); 
                     clear_item_grid(item_grid);
                     clear_enemy_grid(enemy_grid);
+                    clear_visibility_grid(visibility_grid);
 
                     // if new floor is divisible by 5, spawn a merchant
                     // TODO
@@ -162,14 +167,16 @@ int main()
                     set_item_spawns(rooms, item_grid, map);
                     set_enemy_spawns(rooms, enemy_grid, map, floor, item_grid);
                     set_player_spawn(rooms, player_ptr);
+                    update_visiblity_grid(visibility_grid, map, player_ptr);
                     print_new_floor(floor);
                     break;                    
                 default:
                     update_enemy_positions(player_ptr, enemy_grid, map);
+                    update_visiblity_grid(visibility_grid, map, player_ptr);
                     break;
             }
             // update map, enemy, and player location
-            write_map_curse(map, item_grid, enemy_grid);
+            write_map_curse(map, item_grid, enemy_grid, visibility_grid);
             
 
             // check if we've entered combat; if so, do combat
@@ -178,7 +185,7 @@ int main()
             {
                 print_enemy_combat(stepped_on_enemy_id);
                 do_combat_sequence(player_ptr, stepped_on_enemy_id, enemy_grid);
-                write_map_curse(map, item_grid, enemy_grid);
+                write_map_curse(map, item_grid, enemy_grid, visibility_grid);
             }
 
             
@@ -865,7 +872,37 @@ void curse_put(int row, int col, char c, int color)
     attroff(COLOR_PAIR(color));
 }
 
-void write_map_curse(char map[], int* item_grid, int* enemy_grid)
+
+
+/*
+
+returns whether a coordinate on the map
+is next to an open space; either vertically,
+horizontally, or diagonally
+*/
+bool next_to_open_space(char map[], int row, int column)
+{
+    
+    for (int r = -1; r <= 1; r++)
+    {
+        for (int c = -1; c <= 1; c++)
+        {
+            int check_row = row + r;
+            int check_col = column + c;
+            if (check_row >= 0 && check_row < MAP_HEIGHT 
+                && check_col >= 0 && check_col < MAP_WIDTH)
+            {
+                if (get_map_char(check_row, check_col, map) == OPEN_SPACE)
+                {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+void write_map_curse(char map[], int* item_grid, int* enemy_grid, bool visibility_grid[])
 {
 
     for (int row = 0; row < MAP_HEIGHT; row++) {
@@ -874,6 +911,14 @@ void write_map_curse(char map[], int* item_grid, int* enemy_grid)
             int display_row = row + MAP_HEIGHT_OFFSET;
             switch (c) {
                 case OPEN_SPACE:
+                    // bool is_visible(char* map, int player_row, int player_col, int row, int column)
+
+                    if (!visibility_grid[row * MAP_WIDTH + column])
+                    {
+                        curse_put(display_row, column, EMPTY_VOID, 0);
+                        break;
+                    }
+
                     if (enemy_grid[row * MAP_WIDTH + column] != NULL_ENEMY_ID) {
                         curse_put(display_row, column, ENEMY_SYMBOL, ENEMY_SYMBOL);
                     }
@@ -884,9 +929,22 @@ void write_map_curse(char map[], int* item_grid, int* enemy_grid)
                     }
                     break;
                 case WALL:
-                    curse_put(display_row, column, c, 0);
+                    if (next_to_open_space(map, row, column))
+                    {
+                        curse_put(display_row, column, c, 0);
+                    }
+                    else
+                    {
+                        curse_put(display_row, column, EMPTY_VOID, 0);
+                    }
+                    
                     break;
                 case STAIR:
+                    if (!visibility_grid[row * MAP_WIDTH + column])
+                    {
+                        curse_put(display_row, column, EMPTY_VOID, 0);
+                        break;
+                    }
                     curse_put(display_row, column, c, STAIR);
                     break;
                 default:
@@ -919,6 +977,26 @@ void clear_enemy_grid(int enemy_grid[])
     }
 }
 
+void clear_visibility_grid(bool visibility_grid[])
+{
+    for (int i = 0; i < MAP_HEIGHT * MAP_WIDTH; i++) {
+        visibility_grid[i] = false;
+    }
+}
+
+void update_visiblity_grid(bool visibility_grid[], char* map, player* p)
+{
+    for (int row = 0; row < MAP_HEIGHT; row++)
+    {
+        for (int col = 0; col < MAP_WIDTH; col++)
+        {
+            if (is_visible(map, p->row, p->column, row, col))
+            {
+                visibility_grid[row * MAP_WIDTH + col] = true;
+            }
+        }
+    }
+}
 
 
 // Damage dealt = [rnd num btwn 0 and [atk stat]] + [atk stat / 2]

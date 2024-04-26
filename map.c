@@ -2,7 +2,17 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <time.h>
+#include <math.h>
 #include "map.h"
+
+bool intersection_helper(char* map, double current_row, double current_col, bool is_row_check);
+bool is_integer(double num);
+bool visible_helper_straight(char* map, int player_row, int player_col, int row, int column);
+
+bool is_integer(double num)
+{
+    return num == ((int) num);
+}
 
 /*
 Loads map from file
@@ -269,85 +279,242 @@ void update_visibility(char* map, bool visible[], int row, int column)
 }
 
 // adapted from code I wrote for CS50 final project
-// bool is_visible(char* map, int player_row, int player_col, int row, int column)
-// {
-//     if (map == NULL || row < 0 || row >= MAP_HEIGHT
-//         || column < 0 || column >= MAP_WIDTH)
-//         return false;
-//     if (row == player_row && column == player_col)
-//         return true;
+bool is_visible(char* map, int player_row, int player_col, int row, int column)
+{
+    if (map == NULL || row < 0 || row >= MAP_HEIGHT
+        || column < 0 || column >= MAP_WIDTH)
+        return false;
+    if (row == player_row && column == player_col)
+        return true;
 
-//     double delta_row = player_row - row;
-//     double delta_col = player_col - column;
-//     if (delta_col == 0 || delta_row == 0) {
-//         return visible_helper_straight(map, player_row, player_col, row, column);
-//     }
+    double distance = sqrt( pow(player_row - row, 2) + pow(player_col - column, 2) );
+    if (distance > MAX_VISION_DISTANCE)
+    {
+        return false;
+    }
 
-//     double current_row = 0;
-//     double current_col = 0;
+    // we separate out the cases of deltaRow = 0 and deltaCol = 0 so that we will
+    // not have issues with divide by zero errors when calculating slope
+    double delta_row = player_row - row;
+    double delta_col = player_col - column;
+    if (delta_col == 0 || delta_row == 0) {
+        return visible_helper_straight(map, player_row, player_col, row, column);
+    }
 
-//     double dr_dc = delta_row / delta_col;
-//     double dc_dr = delta_col / delta_row;
+    double current_row = 0;
+    double current_col = 0;
 
-//     // case 1) point below, right of player
-//     if (row > player_row && column > player_col) { // dr_dc, dc_dr > 0
-//         current_row = player_row + dr_dc;
-//         for (current_col = player_col + 1; current_col < column && current_row >= 0
-//             && current_row < MAP_HEIGHT; current_col++) {
-//                 bool can_see_thru_intersection = intersection_helper(map, current_row, current_col, true);
-//             }
-//     }
+    double dr_dc = delta_row / delta_col;
+    double dc_dr = delta_col / delta_row;
+
+    // case 1) point below, right of player
+    if (row > player_row && column > player_col) { // dr_dc, dc_dr > 0
+        current_row = player_row + dr_dc;
+        for (current_col = player_col + 1; current_col < column && current_row >= 0
+            && current_row < MAP_HEIGHT; current_col++) 
+        {
+            bool can_see_thru_intersection = intersection_helper(map, current_row, current_col, true);
+            if (!can_see_thru_intersection)
+            {
+                return false;
+            }
+            current_row += dr_dc;
+        }
+        current_col = player_col + dc_dr;
+        for (current_row = player_row + 1; current_row < row && current_col >= 0
+            && current_col < MAP_WIDTH; current_row++)
+        {
+            // at each col val, check if view is obstructed; if so, false
+            bool can_see_thru_intersection = intersection_helper(map, current_row, current_col, false);
+            if (!can_see_thru_intersection)
+            {
+                return false;
+            }
+            current_col += dc_dr;
+        }
+        return true;
+    }
+
+    // case 2 - point is below, left of player
+    if (row > player_row && column < player_col)
+    {
+        current_row = player_row - dr_dc;
+        for (current_col = player_col - 1; current_col > column && current_row >= 0
+            && current_row < MAP_HEIGHT; current_col--)
+        {
+            bool can_see_thru_intersection = intersection_helper(map, current_row, current_col, true);
+            if (!can_see_thru_intersection)
+            {
+                return false;
+            }
+            current_row -= dr_dc;
+        }
+        current_col = player_col + dc_dr;
+        for (current_row = player_row + 1; current_row < row && current_col >= 0 &&
+            current_col < MAP_WIDTH; current_row++)
+        {
+            bool can_see_thru_intersection = intersection_helper(map, current_row, current_col, false);
+            if (!can_see_thru_intersection)
+            {
+                return false;
+            }
+            current_col += dc_dr;
+        }
+        return true;
+    }
+    // case 3) above to the left
+    if (row < player_row && column < player_col)
+    {
+        current_row = player_row - dr_dc;
+        for (current_col = player_col - 1; current_col > column && current_row >= 0
+            && current_row < MAP_HEIGHT; current_col--)
+        {
+            bool can_see_thru_intersection = intersection_helper(map, current_row, current_col, true);
+            if (!can_see_thru_intersection)
+            {
+                return false;
+            }
+            current_row -= dr_dc;
+        }
+        current_col = player_col - dc_dr;
+        for (current_row = player_row - 1; current_row > row && current_col >= 0
+            && current_col < MAP_WIDTH; current_row--)
+        {
+            bool can_see_thru_intersection = intersection_helper(map, current_row, current_col, false);
+            if (!can_see_thru_intersection)
+            {
+                return false;
+            }
+            current_col -= dc_dr;
+        }
+        return true;
+    }
+    // case 4, above to the right
+    if (row < player_row && column > player_col)
+    {
+        current_row = player_row + dr_dc;
+        for (current_col = player_col + 1; current_col < column && current_row >= 0
+            && current_row < MAP_HEIGHT; current_col++)
+        {
+            bool can_see_thru_intersection = intersection_helper(map, current_row, current_col, true);
+            if (!can_see_thru_intersection)
+            {
+                return false;
+            }
+            current_row += dr_dc;
+        }
+        current_col = player_col - dc_dr;
+        for (current_row = player_row - 1; current_row > row && current_col >= 0 &&
+            current_col < MAP_WIDTH; current_row--)
+        {
+            bool can_see_thru_intersection = intersection_helper(map, current_row, current_col, false);
+            if (!can_see_thru_intersection)
+            {
+                return false;
+            }
+            current_col -= dc_dr;
+        }
+        return true;
+    }
+    return false;
 
 
-// }
+}
 
-// bool intersection_helper(char* map, double current_row, double current_col, bool is_row_check)
-// {
-//     if (is_row_check) {
-//         if
-//     }
-// }
+bool can_see_through(char* map, int row, int column)
+{
+    char c = get_map_char(row, column, map);
+    return c == OPEN_SPACE || c == STAIR;
+
+}
+
+bool intersection_helper(char* map, double current_row, double current_col, bool is_row_check)
+{
+    if (is_row_check) 
+    {
+        if (is_integer(current_row))
+        {
+            if (!can_see_through(map, (int) current_row, (int) current_col))
+            {
+                return false;
+            }
+        }
+        else
+        {
+            int row_above = (int) current_row;
+            int row_below = (int) current_row + 1;
+            bool can_see_above = can_see_through(map, row_above, (int) current_col);
+            bool can_see_below = can_see_through(map, row_below, (int) current_col);
+            if (!can_see_above && !can_see_below)
+            {
+                return false;
+            }
+        }
+    }
+    else
+    {
+        if (is_integer(current_col))
+        {
+            if (!can_see_through(map, (int) current_row, (int) current_col))
+            {
+                return false;
+            }
+        }
+        else
+        {
+            int col_left = (int) current_col;
+            int col_right = (int) current_col + 1;
+            bool can_see_left = can_see_through(map, (int) current_row, col_left);
+            bool can_see_right = can_see_through(map, (int) current_row, col_right);
+            if (!can_see_left && !can_see_right)
+            {
+                return false;
+            }
+        }
+    }
+    return true;
+}
 
 
 
-// bool visible_helper_straight(char* map, int player_row, int player_col, int row, int column)
-// {
-//     double delta_row = player_row - row;
-//     double delta_col = player_col - column;
-//     if (delta_row == 0) {
-//         if (player_col < column) {
-//             for (int i = player_col + 1; i < column; i++) {
-//                 if (!can_see_through(map, row, i)) {
-//                     return false;
-//                 }
-//             }
-//         } else {
-//             for (int i = player_col - 1; i > column; i--) {
-//                 if (!can_see_through(map, row, i)) {
-//                     return false;
-//                 }
-//             }
-//         }
-//         return true;
-//     }
-//     if (delta_col == 0) {
-//         if (player_row < row) {
-//             for (int i = player_row + 1; i < row; i++) {
-//                 if (!can_see_through(map, i, column)) {
-//                     return false;
-//                 }
-//             }
-//         } else {
-//             for (int i = player_row - 1; i > row; i--) {
-//                 if (!can_see_through(map, i, column)) {
-//                     return false;
-//                 }
-//             }
-//         }
-//         return true;
-//     }
-//     return true;
-// }
+bool visible_helper_straight(char* map, int player_row, int player_col, int row, int column)
+{
+    double delta_row = player_row - row;
+    double delta_col = player_col - column;
+    if (delta_row == 0) {
+        if (player_col < column) {
+            for (int i = player_col + 1; i < column; i++) {
+                if (!can_see_through(map, row, i)) {
+                    return false;
+                }
+            }
+        } else {
+            for (int i = player_col - 1; i > column; i--) {
+                if (!can_see_through(map, row, i)) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+    if (delta_col == 0) {
+        if (player_row < row) {
+            for (int i = player_row + 1; i < row; i++) {
+                if (!can_see_through(map, i, column)) {
+                    return false;
+                }
+            }
+        } else {
+            for (int i = player_row - 1; i > row; i--) {
+                if (!can_see_through(map, i, column)) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+    return true;
+}
 
 // bool can_see_through(char* map, int r, int c)
 // {
