@@ -139,7 +139,7 @@ void save_game_state(char* map, player* p, int item_grid[], int enemy_grid[], bo
         fwrite(p->inventory, sizeof(inventory_t), 1, file);
         fwrite(item_grid, sizeof(int), MAP_WIDTH * MAP_HEIGHT, file);
         fwrite(enemy_grid, sizeof(int), MAP_WIDTH * MAP_HEIGHT, file);
-        fwrite(visibility_grid, sizeof(int), MAP_WIDTH * MAP_HEIGHT, file);
+        fwrite(visibility_grid, sizeof(bool), MAP_WIDTH * MAP_HEIGHT, file);
         fwrite(floor_level, sizeof(int), 1, file);
         fclose(file);
     }
@@ -257,6 +257,7 @@ int main()
     if (loaded_from_save_file)
     {
         load_game_state(map, player_ptr, item_grid, enemy_grid, visibility_grid, &floor);
+        print_new_floor(floor);
     }
     else 
     {
@@ -298,7 +299,11 @@ int main()
                 case 0:
                     break;
                 case STAIR:
-                    delete_rooms(rooms);
+
+                    if (! (floor == 1 && loaded_from_save_file) )
+                    {
+                        delete_rooms(rooms);
+                    }
 
                     rooms_gen(rooms);
                     map_gen(rooms, ++floor, map); 
