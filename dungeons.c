@@ -268,7 +268,7 @@ int main()
         set_player_spawn(rooms, player_ptr);
         update_visiblity_grid(visibility_grid, map, player_ptr);
     }
-        
+    int spawned_floor = floor;
     
     write_map_curse(map, item_grid, enemy_grid, visibility_grid);
     display_player_char(player_ptr);
@@ -300,7 +300,7 @@ int main()
                     break;
                 case STAIR:
 
-                    if (! (floor == 1 && loaded_from_save_file) )
+                    if (! (floor == spawned_floor && loaded_from_save_file) )
                     {
                         delete_rooms(rooms);
                     }
