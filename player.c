@@ -6,7 +6,7 @@
 
 void player_delete(player* p)
 {
-    if (p == NULL) {
+    if (p == NULL || p->inventory == NULL) {
         return;
     }
     free(p->inventory);
@@ -40,6 +40,12 @@ player* player_init()
     // p->defense = 1;
 
     p->inventory = malloc(sizeof(inventory_t));
+    if (p->inventory == NULL)
+    {
+        fprintf(stderr, "error: unable to allocate player inventory data\n");
+        exit(1);
+        return NULL;
+    }
     for (int i = 0; i < MAX_INVENTORY_SIZE; i++) {
         p->inventory->items[i] = NULL_ITEM_ID;
     }

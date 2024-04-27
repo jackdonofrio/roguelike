@@ -73,7 +73,10 @@ void rooms_gen(room* rooms[])
     for (int i = 0; i < ROOM_COUNT; i++) {
         room* r = room_gen();
         while (room_overlaps(r, rooms, i)) {
-            free(r);
+            if (r != NULL)
+            {
+                free(r);
+            }
             r = room_gen();
         }
         rooms[i] = r;
@@ -83,7 +86,10 @@ void rooms_gen(room* rooms[])
 void delete_rooms(room* rooms[])
 {
     for (int i = 0; i < ROOM_COUNT; i++) {
-        free(rooms[i]);
+        if (rooms[i] != NULL)
+        {
+            free(rooms[i]);
+        }
     }
 }
 

@@ -98,6 +98,140 @@ void print_item_min_level(int item_id);
 void print_enemy_combat(int enemy_id);
 
 
+void save_game_state(char* map, player* p, int item_grid[], int enemy_grid[], bool visibility_grid[],
+    int* floor_level);
+void load_game_state(char* map, player* p, int item_grid[], int enemy_grid[], bool visibility_grid[],
+    int* floor_level);
+bool save_state_exists();
+
+bool choose_save_menu();
+
+bool save_state_exists()
+{
+    FILE* file = fopen("savegame.dat", "rb");
+    bool exists = file != NULL;
+    fclose(file);
+    return exists;
+}
+
+// TODO create game_state struct which stores all this info
+void save_game_state(char* map, player* p, int item_grid[], int enemy_grid[], bool visibility_grid[],
+    int* floor_level)
+{
+    if (p == NULL)
+    {
+        printf("err: save_game_state null player ptr\n");
+        return;
+    }
+    if (p->inventory == NULL)
+    {
+        printf("err: save_game_state null player inventory ptr\n");
+        return;
+    }
+    printf("SAVING GAME HERE\n");
+
+
+    FILE* file = fopen("savegame.dat", "wb");
+    if (file != NULL)
+    {
+        fwrite(map, sizeof(char), MAP_WIDTH * MAP_HEIGHT, file);
+        fwrite(p, sizeof(player), 1, file);
+        fwrite(p->inventory, sizeof(inventory_t), 1, file);
+        fwrite(item_grid, sizeof(int), MAP_WIDTH * MAP_HEIGHT, file);
+        fwrite(enemy_grid, sizeof(int), MAP_WIDTH * MAP_HEIGHT, file);
+        fwrite(visibility_grid, sizeof(int), MAP_WIDTH * MAP_HEIGHT, file);
+        fwrite(floor_level, sizeof(int), 1, file);
+        fclose(file);
+    }
+    printf("DONE SAVING GME\n");
+}
+
+void load_game_state(char* map, player* p, int item_grid[], int enemy_grid[], bool visibility_grid[],
+    int* floor_level)
+{
+    FILE* file = fopen("savegame.dat", "rb");
+    if (file != NULL)
+    {
+        fread(map, sizeof(char), MAP_WIDTH * MAP_HEIGHT, file);
+        fread(p, sizeof(player), 1, file);
+        fread(p->inventory, sizeof(inventory_t), 1, file);
+        fread(item_grid, sizeof(int), MAP_WIDTH * MAP_HEIGHT, file);
+        fread(enemy_grid, sizeof(int), MAP_WIDTH * MAP_HEIGHT, file);
+        fread(visibility_grid, sizeof(bool), MAP_WIDTH * MAP_HEIGHT, file);
+        fread(floor_level, sizeof(int), 1, file);
+        fclose(file);
+    }
+}
+
+
+bool choose_save_menu()
+{
+    // create larger white box around main menu
+    for (int i = 0; i < MAP_HEIGHT; i++)
+    {
+        int display_row = i + MAP_HEIGHT_OFFSET;
+        curse_put(display_row, 0, WALL, WHITE_TEXT_COLOR);
+        curse_put(display_row, MAP_WIDTH - 1, WALL, WHITE_TEXT_COLOR);
+    }
+
+    for (int j = 0; j < MAP_WIDTH; j++)
+    {
+        int display_col = j;
+        curse_put(MAP_HEIGHT_OFFSET, display_col, WALL, WHITE_TEXT_COLOR);
+        curse_put(MAP_HEIGHT_OFFSET + MAP_HEIGHT - 1, display_col, WALL, WHITE_TEXT_COLOR);
+    }
+
+    const int bottom_text_offset = 2;
+
+    int center_row = MAP_HEIGHT / 2;
+    int q_row = center_row / 2;
+    int center_column = MAP_WIDTH / 2;
+    int q_col = center_column / 2;
+
+    display_center_box(WHITE_TEXT_COLOR);
+    curse_print(center_row + q_row - 1, center_column - q_col + bottom_text_offset, "Select [X]\t Quit [Q]",
+        WHITE_TEXT_COLOR);
+
+    char key;
+    bool made_choice = false;
+    bool new_save_selected = false;
+    bool chose_load_from_save;
+    while (!made_choice)
+    {
+        curse_print(center_row - q_row + 6, center_column - q_col + 7, "Load save game", 
+            new_save_selected ? WHITE_TEXT_COLOR : HIGHLIGHT_TEXT_COLOR);
+        curse_print(center_row - q_row + 7, center_column - q_col + 7, "New save game", 
+            new_save_selected ? HIGHLIGHT_TEXT_COLOR : WHITE_TEXT_COLOR);
+
+        key = getch();
+        switch (key)
+        {
+            case 'w':
+            case 'W':
+                new_save_selected = false;
+                break;
+            case 's':
+            case 'S':
+                new_save_selected = true;
+                break;
+            case 'x':
+            case 'X':
+                made_choice = true;
+                chose_load_from_save = !new_save_selected;
+                return chose_load_from_save;
+                break;
+            case 'q':
+            case 'Q':
+                endwin();
+                exit(1);
+                break;
+        }
+
+    }
+    return false;
+}
+
+
 int main()
 {
     srand(time(NULL));
@@ -111,18 +245,30 @@ int main()
     clear_enemy_grid(enemy_grid);
     clear_visibility_grid(visibility_grid);
 
+    setup_ncurses();
+
     int floor = 1;
     char current_screen = MAP_SCREEN;
     int inventory_cursor = 0;
-
-    rooms_gen(rooms);
-    map_gen(rooms, floor, map); 
-    set_item_spawns(rooms, item_grid, map);
-    set_enemy_spawns(rooms, enemy_grid, map, floor, item_grid);
-    set_player_spawn(rooms, player_ptr);
-    update_visiblity_grid(visibility_grid, map, player_ptr);
+    char key;
+    
+    bool chose_load_from_save = choose_save_menu();
+    bool loaded_from_save_file = chose_load_from_save && save_state_exists();
+    if (loaded_from_save_file)
+    {
+        load_game_state(map, player_ptr, item_grid, enemy_grid, visibility_grid, &floor);
+    }
+    else 
+    {
+        rooms_gen(rooms);
+        map_gen(rooms, floor, map); 
+        set_item_spawns(rooms, item_grid, map);
+        set_enemy_spawns(rooms, enemy_grid, map, floor, item_grid);
+        set_player_spawn(rooms, player_ptr);
+        update_visiblity_grid(visibility_grid, map, player_ptr);
+    }
         
-    setup_ncurses();
+    
     write_map_curse(map, item_grid, enemy_grid, visibility_grid);
     display_player_char(player_ptr);
     display_user_info_line(player_ptr);
@@ -130,7 +276,6 @@ int main()
     curse_print(MAP_BOTTOM + 1, 20, "Equipment [T]", HIGHLIGHT_TEXT_COLOR);
     curse_print(MAP_BOTTOM + 1, 40, "Stats [R]", HIGHLIGHT_TEXT_COLOR);
 
-    char key;
     while ((key = getch()) != 'q') {
         if (key == 'e' || key == 'E') {
             current_screen = (current_screen == INVENTORY_SCREEN) ? MAP_SCREEN : INVENTORY_SCREEN;
@@ -193,8 +338,14 @@ int main()
             display_player_char(player_ptr);
         }
     }
-    player_delete(player_ptr);
-    delete_rooms(rooms);
+    save_game_state(map, player_ptr, item_grid, enemy_grid, visibility_grid, &floor);
+
+    if (!loaded_from_save_file)
+    {
+        player_delete(player_ptr);
+        delete_rooms(rooms);
+    }
+    
     
     endwin();
     return 0;
@@ -449,30 +600,30 @@ char handle_walk_key(player* player_ptr, char map[], int row_change, int col_cha
     return 0;
 }
 
-void display_center_box()
+void display_center_box(int box_color)
 {
     int center_row = MAP_HEIGHT / 2;
     int q_row = center_row / 2;
     int center_column = MAP_WIDTH / 2;
     int q_col = center_column / 2;
     int r, c;
-    curse_put(center_row - q_row, center_column - q_col, '+', INVENTORY_SCREEN_COLOR);
+    curse_put(center_row - q_row, center_column - q_col, '+', box_color);
     for (c = center_column - q_col + 1; c < center_column + q_col - 1; c++) {
-        curse_put(center_row - q_row, c, '-', INVENTORY_SCREEN_COLOR);
+        curse_put(center_row - q_row, c, '-', box_color);
     }
-    curse_put(center_row - q_row, center_column + q_col - 1, '+', INVENTORY_SCREEN_COLOR);
+    curse_put(center_row - q_row, center_column + q_col - 1, '+', box_color);
     for (r = center_row - q_row + 1; r < center_row + q_row; r++) {
-        curse_put(r, center_column - q_col, '|', INVENTORY_SCREEN_COLOR);
+        curse_put(r, center_column - q_col, '|', box_color);
         for (c = center_column - q_col + 1; c < center_column + q_col; c++) {
             mvaddch(r, c, ' ');
         }
-        curse_put(r, c - 1, '|', INVENTORY_SCREEN_COLOR);
+        curse_put(r, c - 1, '|', box_color);
     }
     for (c = center_column - q_col + 1; c < center_column + q_col - 1; c++) {
-        curse_put(center_row + q_row, c, '-', INVENTORY_SCREEN_COLOR);
+        curse_put(center_row + q_row, c, '-', box_color);
     }
-    curse_put(center_row + q_row, center_column - q_col, '+', INVENTORY_SCREEN_COLOR);
-    curse_put(center_row + q_row, center_column + q_col - 1, '+', INVENTORY_SCREEN_COLOR);
+    curse_put(center_row + q_row, center_column - q_col, '+', box_color);
+    curse_put(center_row + q_row, center_column + q_col - 1, '+', box_color);
 }
 
 void calc_player_stats(player* p)
@@ -498,7 +649,7 @@ void do_combat_sequence(player* p, int enemy_id, int* enemy_grid)
     // calc enemy starting HP
     int enemy_hp = ceil(enemy_defense * 2.5);
 
-    display_center_box();
+    display_center_box(INVENTORY_SCREEN_COLOR);
     curse_print(center_row - q_row + 1, center_column - STATS_TEXT_OFFSET,
         "~Combat~", INVENTORY_SCREEN_COLOR);
 
@@ -679,7 +830,7 @@ void display_stats(player* p)
     int q_row = center_row / 2;
     int center_column = MAP_WIDTH / 2;
     int q_col = center_column / 2;
-    display_center_box();
+    display_center_box(INVENTORY_SCREEN_COLOR);
     curse_print(center_row - q_row + 1, center_column - STATS_TEXT_OFFSET,
         "~Stats~", INVENTORY_SCREEN_COLOR);
     mvprintw(center_row - q_row + 2, center_column - q_col + 2, 
@@ -697,7 +848,7 @@ void display_equipment(player* p)
     int q_row = center_row / 2;
     int center_column = MAP_WIDTH / 2;
     int q_col = center_column / 2;
-    display_center_box();
+    display_center_box(INVENTORY_SCREEN_COLOR);
     curse_print(center_row - q_row + 1, center_column - INVENTORY_TEXT_OFFSET,
         "~Equipment~", INVENTORY_SCREEN_COLOR);
     // display equipment    
@@ -722,7 +873,7 @@ void display_inventory(player* p, int inventory_cursor)
     int q_col = center_column / 2;
     int r, c;
     
-    display_center_box();
+    display_center_box(INVENTORY_SCREEN_COLOR);
     curse_print(center_row - q_row + 1, center_column - INVENTORY_TEXT_OFFSET,
         "~Inventory~", INVENTORY_SCREEN_COLOR);
 
