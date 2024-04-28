@@ -99,7 +99,7 @@ room* room_gen()
     const int min_height = 4;
     const int min_width = 4;
     const int max_height = 12;
-    const int max_width = 15;
+    const int max_width = 14;
 
     room* r = malloc(sizeof(room));
     if (r == NULL) {

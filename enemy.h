@@ -8,7 +8,6 @@
 #define NULL_ENEMY_ID 0
 #define GOBLIN		  1
 #define WRAITH		  2
-#define NUM_ENEMIES   3
 
 typedef struct
 {
@@ -26,6 +25,7 @@ typedef struct
 	int exp;
 } enemy_combat;
 
+#define NUM_ENEMIES   3
 static enemy_combat enemy_combat_data[NUM_ENEMIES] = {
 	{"None", 	0, 0, 0},
 	{"Goblin",	1, 3, 5},

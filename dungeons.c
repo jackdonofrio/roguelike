@@ -25,6 +25,10 @@
 #define   MAGENTA_TEXT_COLOR  6
 #define HIGHLIGHT_TEXT_COLOR 40
 
+#define PERMADEATH_ENABLED true
+
+#define LOST_COMBAT true
+#define WON_COMBAT  false
 
 #define ESCAPE_ASCII 27
 #define INVENTORY_SCREEN_COLOR 5
@@ -66,12 +70,12 @@ void display_stats(player* p);
 void calc_player_stats(player* p);
 
 void display_equipment(player* p);
-void display_center_box();
+void display_center_box(int box_color);
 
 void write_map_curse(char map[], int item_grid[], int enemy_grid[], bool visibility_grid[]);
 // void do_map_screen_event(char map[], )
 
-void do_combat_sequence(player* p, int enemy_id, int* enemy_grid);
+bool do_combat_sequence(player* p, int enemy_id, int* enemy_grid);
 int calc_damage_done(int attacker_attack, int defender_defense);
 
 
@@ -104,14 +108,26 @@ void load_game_state(char* map, player* p, int item_grid[], int enemy_grid[], bo
     int* floor_level);
 bool save_state_exists();
 
+void delete_save_game();
+
 bool choose_save_menu();
 
 bool save_state_exists()
 {
     FILE* file = fopen("savegame.dat", "rb");
     bool exists = file != NULL;
+    fseek(file, 0, SEEK_END);
+    if (ftell(file) == 0)
+    {
+        exists = false;
+    }
     fclose(file);
     return exists;
+}
+
+void delete_save_game()
+{
+    fclose(fopen("savegame.dat", "wb"));
 }
 
 // TODO create game_state struct which stores all this info
@@ -277,7 +293,10 @@ int main()
     curse_print(MAP_BOTTOM + 1, 20, "Equipment [T]", HIGHLIGHT_TEXT_COLOR);
     curse_print(MAP_BOTTOM + 1, 40, "Stats [R]", HIGHLIGHT_TEXT_COLOR);
 
-    while ((key = getch()) != 'q') {
+
+    bool lost_combat = false;
+
+    while ((key = getch()) != 'q' && !lost_combat) {
         if (key == 'e' || key == 'E') {
             current_screen = (current_screen == INVENTORY_SCREEN) ? MAP_SCREEN : INVENTORY_SCREEN;
         } else if (key == 't' || key == 'T') {
@@ -334,7 +353,11 @@ int main()
             if (stepped_on_enemy_id != NULL_ENEMY_ID)
             {
                 print_enemy_combat(stepped_on_enemy_id);
-                do_combat_sequence(player_ptr, stepped_on_enemy_id, enemy_grid);
+                lost_combat = do_combat_sequence(player_ptr, stepped_on_enemy_id, enemy_grid);
+                if (lost_combat)
+                {
+                    break;
+                }
                 write_map_curse(map, item_grid, enemy_grid, visibility_grid);
             }
 
@@ -343,7 +366,14 @@ int main()
             display_player_char(player_ptr);
         }
     }
-    save_game_state(map, player_ptr, item_grid, enemy_grid, visibility_grid, &floor);
+    if (!lost_combat)
+    {
+        save_game_state(map, player_ptr, item_grid, enemy_grid, visibility_grid, &floor);
+    } else if (PERMADEATH_ENABLED)
+    {
+        delete_save_game();
+    }
+    
 
     if (!loaded_from_save_file)
     {
@@ -426,6 +456,19 @@ int pick_enemy(int floor)
     }
     return 1 + (rand() % (NUM_ENEMIES - 1));
 }
+
+
+// void set_merchant_spawn(room* rooms[], int* enemy_grid, char* map, int floor, int* item_grid
+//     int* merchant_row, int* merchant column)
+// {
+//     room* r = rooms[rand() % ROOM_COUNT];
+//     int right = r->corner_col + r->width;
+//     int bottom = r->corner_row + r->height;
+//     int r_row = rand() % (bottom - 1 - r->corner_row) + r->corner_row + 1;
+//     int r_col = rand() % (right - 2 - r->corner_col) + r->corner_col + 1;
+//     // if (get_map_char(r_row, r_col, map) != OPEN_SPACE || item_gr)
+// }
+
 
 void set_enemy_spawns(room* rooms[], int* enemy_grid, char map[], int floor, int* item_grid)
 {
@@ -640,7 +683,7 @@ void calc_player_stats(player* p)
         item_data[p->shield].defense;
 }
 
-void do_combat_sequence(player* p, int enemy_id, int* enemy_grid)
+bool do_combat_sequence(player* p, int enemy_id, int* enemy_grid)
 {
     calc_player_stats(p);
     int center_row = MAP_HEIGHT / 2;
@@ -790,10 +833,14 @@ void do_combat_sequence(player* p, int enemy_id, int* enemy_grid)
         attroff(COLOR_PAIR(DAMAGE_MSG_COLOR));
 
 
-        // TODO add player defeat
-
-
-        if (enemy_hp <= 0)
+        if (p->health <= 0)
+        {
+            battle_over = true;
+            player_win = false;
+            mvprintw(center_row - q_row + 9, center_column - q_col + 2,
+                "You were killed by %s!", enemy_name);
+        }
+        else if (enemy_hp <= 0)
         {
             mvprintw(center_row - q_row + 3, center_column - q_col + 2,
                 "HP: %d ATK: %d DEF: %d", enemy_hp, enemy_attack, enemy_defense);
@@ -825,7 +872,9 @@ void do_combat_sequence(player* p, int enemy_id, int* enemy_grid)
     if (player_win)
     {
         enemy_grid[p->row * MAP_WIDTH + p->column] = NULL_ENEMY_ID;
+        return WON_COMBAT;
     }
+    return LOST_COMBAT;
 }
 
 void display_stats(player* p)
@@ -896,6 +945,8 @@ void display_inventory(player* p, int inventory_cursor)
         case SHIELD:
             mvprintw(center_row + q_row - 1, center_column - q_col + bottom_text_offset, "Equip [F]");
             bottom_text_offset += 10;
+            break;
+        default:
             break;
     }
     if (p->inventory->current_size > 0) {
@@ -978,6 +1029,8 @@ void do_inventory_event(player* player_ptr, int* inventory_cursor_ptr, char key,
                 case SHIELD:
                     equip_item(player_ptr, &(player_ptr->shield), inventory_cursor, item_id);
                     inventory_cursor = max(min(inventory_cursor, player_ptr->inventory->current_size - 1), 0);
+                    break;
+                default:
                     break;
             }
             break;

@@ -10,7 +10,7 @@ including room generation
 #define MAP_HEIGHT 28
 #define ROOM_COUNT 4
 
-#define MAX_VISION_DISTANCE 5
+#define MAX_VISION_DISTANCE 6
 
 // map symbols
 #define PLAYER_SYMBOL '@'
