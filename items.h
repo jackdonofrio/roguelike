@@ -31,11 +31,19 @@ typedef enum {
     FOOD
 } item_type;
 
+typedef enum {
+    COMMON,
+    UNCOMMON,
+    RARE
+} item_rarity;
+
 typedef struct {
     char* name;
     item_type type;
     int min_level;
-    // using anonymous union
+    item_rarity rarity;
+
+    // using anonymous union to save space
     union {
         int attack;
         int defense;
@@ -45,17 +53,19 @@ typedef struct {
 
 #define NUM_ITEMS         11
 static item item_data[NUM_ITEMS] = {
-    {"----",               NONE,        1, .attack        = 1}, // fists have attack = 1
-    {"Bronze sword",       WEAPON,      1, .attack        = 3},
-    {"Bronze helm",        HELM,        1, .defense       = 2},
-    {"Bronze breastplate", BREASTPLATE, 1, .defense       = 4},
-    {"Bronze greaves",     GREAVES,     1, .defense       = 3},
-    {"Bronze shield",      SHIELD,      1, .defense       = 4},
-    {"Iron helm",          HELM,        5, .defense       = 3},
-    {"Bread",              FOOD,        1, .health_points = BASIC_HEALTH_BOOST},
-    {"Apple",              FOOD,        1, .health_points = BASIC_HEALTH_BOOST},
-    {"Stick",              WEAPON,      1, .attack        = 2},
-    {"Magic staff",        WEAPON,      2, .attack        = 3}//,
+    {"----",               NONE,        1, COMMON,   .attack        = 1}, // fists have attack = 1
+    // COMMON ITEMS
+    {"Bronze sword",       WEAPON,      1, COMMON,   .attack        = 3},
+    {"Bronze helm",        HELM,        1, COMMON,   .defense       = 2},
+    {"Bronze breastplate", BREASTPLATE, 1, COMMON,   .defense       = 4},
+    {"Bronze greaves",     GREAVES,     1, COMMON,   .defense       = 3},
+    {"Bronze shield",      SHIELD,      1, COMMON,   .defense       = 4},
+    {"Bread",              FOOD,        1, COMMON,   .health_points = BASIC_HEALTH_BOOST},
+    {"Apple",              FOOD,        1, COMMON,   .health_points = BASIC_HEALTH_BOOST},
+    {"Stick",              WEAPON,      1, COMMON,   .attack        = 2},
+    // UNCOMMON ITEMS
+    {"Iron helm",          HELM,        5, UNCOMMON, .defense       = 3},
+    {"Magic staff",        WEAPON,      2, UNCOMMON, .attack        = 3}//,
     // {""}
 };
 

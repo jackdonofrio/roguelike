@@ -432,8 +432,8 @@ void print_enemy_combat(int enemy_id)
 void display_user_info_line(player* p)
 {
     attron(COLOR_PAIR(CYAN_TEXT_COLOR));
-    mvprintw(MAP_HEIGHT + MAP_HEIGHT_OFFSET, 0, "HP: %3d    Gold: %3d    Level: %d (%d / %d exp)", p->health, p->gold,
-        p->level, p->exp, (int) pow(2, p->level + 1) );
+    mvprintw(MAP_HEIGHT + MAP_HEIGHT_OFFSET, 0, "HP: %d/%d    Gold: %d    Level: %d (%d / %d exp)", p->health, p->max_health,
+      p->gold, p->level, p->exp, (int) pow(2, p->level + 1) );
     attroff(COLOR_PAIR(CYAN_TEXT_COLOR));
 }
 
