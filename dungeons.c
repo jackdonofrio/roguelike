@@ -30,6 +30,10 @@
 #define LOST_COMBAT true
 #define WON_COMBAT  false
 
+#define MERCHANT_FLOOR_FREQUENCY 1 // how many floors btwn merchant spawns
+#define MERCHANT_BAG_SIZE 4
+#define MERCHANT_SYMBOL '$'
+
 #define ESCAPE_ASCII 27
 #define INVENTORY_SCREEN_COLOR 5
 #define INVENTORY_TEXT_OFFSET 6
@@ -54,6 +58,9 @@
 #define DAMAGE_MSG_COLOR 5
 // #define
 
+// TODO - write state struct which holds grids, player, map data etc,
+
+
 void setup_ncurses();
 void curse_put(int row, int col, char c, int color);
 void curse_print(int row, int column, const char* message, int color);
@@ -72,18 +79,23 @@ void calc_player_stats(player* p);
 void display_equipment(player* p);
 void display_center_box(int box_color);
 
-void write_map_curse(char map[], int item_grid[], int enemy_grid[], bool visibility_grid[]);
+void write_map_curse(char map[], int item_grid[], int enemy_grid[], bool visibility_grid[],
+    int merchant_row, int merchant_column);
 // void do_map_screen_event(char map[], )
 
 bool do_combat_sequence(player* p, int enemy_id, int* enemy_grid);
 int calc_damage_done(int attacker_attack, int defender_defense);
 
+void set_merchant_spawn(room* rooms[], int* enemy_grid, char* map, int floor, int* item_grid,
+    int* merchant_row, int* merchant_column);
+void do_merchant_sequence(player* player_ptr);
+void empty_merchant_bag(int* merchant_bag);
 
 void set_player_spawn(room* rooms[], player* p);
 void set_item_spawns(room* rooms[], int item_grid[], char map[]);
 void set_enemy_spawns(room* rooms[], int enemy_grid[], char map[], int floor, int item_grid[]);
 int pick_enemy(int floor);
-void update_enemy_positions(player* p, int enemy_grid[], char map[]);
+void update_enemy_positions(player* p, int enemy_grid[], char map[], int merchant_row, int merchant_column);
 void update_visiblity_grid(bool visibility_grid[], char* map, player* p);
 
 void equip_item(player* player_ptr, int* equipment_piece, int inventory_cursor, int item_id);
@@ -103,9 +115,9 @@ void print_enemy_combat(int enemy_id);
 
 
 void save_game_state(char* map, player* p, int item_grid[], int enemy_grid[], bool visibility_grid[],
-    int* floor_level);
+    int* floor_level, int* merchant_row, int* merchant_column);
 void load_game_state(char* map, player* p, int item_grid[], int enemy_grid[], bool visibility_grid[],
-    int* floor_level);
+    int* floor_level, int* merchant_row, int* merchant_column);
 bool save_state_exists();
 
 void delete_save_game();
@@ -132,7 +144,7 @@ void delete_save_game()
 
 // TODO create game_state struct which stores all this info
 void save_game_state(char* map, player* p, int item_grid[], int enemy_grid[], bool visibility_grid[],
-    int* floor_level)
+    int* floor_level, int* merchant_row, int* merchant_column)
 {
     if (p == NULL)
     {
@@ -157,13 +169,15 @@ void save_game_state(char* map, player* p, int item_grid[], int enemy_grid[], bo
         fwrite(enemy_grid, sizeof(int), MAP_WIDTH * MAP_HEIGHT, file);
         fwrite(visibility_grid, sizeof(bool), MAP_WIDTH * MAP_HEIGHT, file);
         fwrite(floor_level, sizeof(int), 1, file);
+        fwrite(merchant_row, sizeof(int), 1, file);
+        fwrite(merchant_column, sizeof(int), 1, file);
         fclose(file);
     }
     printf("DONE SAVING GME\n");
 }
 
 void load_game_state(char* map, player* p, int item_grid[], int enemy_grid[], bool visibility_grid[],
-    int* floor_level)
+    int* floor_level, int* merchant_row, int* merchant_column)
 {
     FILE* file = fopen("savegame.dat", "rb");
     if (file != NULL)
@@ -175,6 +189,8 @@ void load_game_state(char* map, player* p, int item_grid[], int enemy_grid[], bo
         fread(enemy_grid, sizeof(int), MAP_WIDTH * MAP_HEIGHT, file);
         fread(visibility_grid, sizeof(bool), MAP_WIDTH * MAP_HEIGHT, file);
         fread(floor_level, sizeof(int), 1, file);
+        fread(merchant_row, sizeof(int), 1, file);
+        fread(merchant_column, sizeof(int), 1, file);
         fclose(file);
     }
 }
@@ -264,6 +280,10 @@ int main()
     setup_ncurses();
 
     int floor = 1;
+    int merchant_row, merchant_column;
+    int merchant_bag[MERCHANT_BAG_SIZE];
+    empty_merchant_bag(merchant_bag);
+
     char current_screen = MAP_SCREEN;
     int inventory_cursor = 0;
     char key;
@@ -272,7 +292,8 @@ int main()
     bool loaded_from_save_file = chose_load_from_save && save_state_exists();
     if (loaded_from_save_file)
     {
-        load_game_state(map, player_ptr, item_grid, enemy_grid, visibility_grid, &floor);
+        load_game_state(map, player_ptr, item_grid, enemy_grid, visibility_grid, &floor,
+            &merchant_row, &merchant_column);
         print_new_floor(floor);
     }
     else 
@@ -286,7 +307,7 @@ int main()
     }
     int spawned_floor = floor;
     
-    write_map_curse(map, item_grid, enemy_grid, visibility_grid);
+    write_map_curse(map, item_grid, enemy_grid, visibility_grid, merchant_row, merchant_column);
     display_player_char(player_ptr);
     display_user_info_line(player_ptr);
     curse_print(MAP_BOTTOM + 1, 0, "Inventory [E]", HIGHLIGHT_TEXT_COLOR);
@@ -330,7 +351,15 @@ int main()
                     clear_enemy_grid(enemy_grid);
                     clear_visibility_grid(visibility_grid);
 
-                    // if new floor is divisible by 5, spawn a merchant
+                    // if new floor is divisible by (5), spawn a merchant
+                    if (floor % MERCHANT_FLOOR_FREQUENCY == 0)
+                    {
+                        set_merchant_spawn(rooms, enemy_grid, map, floor, item_grid,
+                            &merchant_row, &merchant_column);
+                    } else {
+                        merchant_row = -1;
+                        merchant_column = -1;
+                    }
                     // TODO
 
                     set_item_spawns(rooms, item_grid, map);
@@ -340,13 +369,21 @@ int main()
                     print_new_floor(floor);
                     break;                    
                 default:
-                    update_enemy_positions(player_ptr, enemy_grid, map);
+                    update_enemy_positions(player_ptr, enemy_grid, map, merchant_row, merchant_column);
                     update_visiblity_grid(visibility_grid, map, player_ptr);
                     break;
             }
             // update map, enemy, and player location
-            write_map_curse(map, item_grid, enemy_grid, visibility_grid);
+            write_map_curse(map, item_grid, enemy_grid, visibility_grid, merchant_row, merchant_column);
             
+            // check if we've stepped on merchant; if so, open shop screen
+            // TODO
+            if (player_ptr->row == merchant_row && player_ptr->column == merchant_column)
+            {
+                // TODO
+                do_merchant_sequence(player_ptr);
+                write_map_curse(map, item_grid, enemy_grid, visibility_grid, merchant_row, merchant_column);
+            }
 
             // check if we've entered combat; if so, do combat
             int stepped_on_enemy_id = enemy_grid[player_ptr->row * MAP_WIDTH + player_ptr->column];
@@ -358,7 +395,7 @@ int main()
                 {
                     break;
                 }
-                write_map_curse(map, item_grid, enemy_grid, visibility_grid);
+                write_map_curse(map, item_grid, enemy_grid, visibility_grid, merchant_row, merchant_column);
             }
 
             
@@ -368,7 +405,8 @@ int main()
     }
     if (!lost_combat)
     {
-        save_game_state(map, player_ptr, item_grid, enemy_grid, visibility_grid, &floor);
+        save_game_state(map, player_ptr, item_grid, enemy_grid, visibility_grid, &floor, &merchant_row,
+            &merchant_column);
     } else if (PERMADEATH_ENABLED)
     {
         delete_save_game();
@@ -458,16 +496,26 @@ int pick_enemy(int floor)
 }
 
 
-// void set_merchant_spawn(room* rooms[], int* enemy_grid, char* map, int floor, int* item_grid
-//     int* merchant_row, int* merchant column)
-// {
-//     room* r = rooms[rand() % ROOM_COUNT];
-//     int right = r->corner_col + r->width;
-//     int bottom = r->corner_row + r->height;
-//     int r_row = rand() % (bottom - 1 - r->corner_row) + r->corner_row + 1;
-//     int r_col = rand() % (right - 2 - r->corner_col) + r->corner_col + 1;
-//     // if (get_map_char(r_row, r_col, map) != OPEN_SPACE || item_gr)
-// }
+void set_merchant_spawn(room* rooms[], int* enemy_grid, char* map, int floor, int* item_grid,
+    int* merchant_row, int* merchant_column)
+{
+    room* r = rooms[rand() % ROOM_COUNT];
+    int right = r->corner_col + r->width;
+    int bottom = r->corner_row + r->height;
+    int r_row = rand() % (bottom - 1 - r->corner_row) + r->corner_row + 1;
+    int r_col = rand() % (right - 2 - r->corner_col) + r->corner_col + 1;
+    while (get_map_char(r_row, r_col, map) != OPEN_SPACE || item_grid[r_row * MAP_WIDTH + r_col] != NULL_ITEM_ID
+        || enemy_grid[r_row * MAP_WIDTH + r_col] != NULL_ENEMY_ID)
+    {
+        r = rooms[rand() % ROOM_COUNT];
+        right = r->corner_col + r->width;
+        bottom = r->corner_row + r->height;
+        r_row = rand() % (bottom - 1 - r->corner_row) + r->corner_row + 1;
+        r_col = rand() % (right - 2 - r->corner_col) + r->corner_col + 1;
+    }
+    (*merchant_row) = r_row;
+    (*merchant_column) = r_col;
+}
 
 
 void set_enemy_spawns(room* rooms[], int* enemy_grid, char map[], int floor, int* item_grid)
@@ -489,7 +537,7 @@ void set_enemy_spawns(room* rooms[], int* enemy_grid, char map[], int floor, int
     }
 }
 
-void update_enemy_positions(player* p, int enemy_grid[], char map[])
+void update_enemy_positions(player* p, int enemy_grid[], char map[], int merchant_row, int merchant_column)
 {
     // very naive, but will have to do unless we track enemy locations
     for (int i = 0; i < MAP_HEIGHT; i++)
@@ -540,6 +588,7 @@ void update_enemy_positions(player* p, int enemy_grid[], char map[])
                 int new_col = j + col_change;
 
                 if (can_step(map, new_row, new_col) 
+                    && !(new_row == merchant_row && new_col == merchant_column)
                     && enemy_grid[new_row * MAP_WIDTH + new_col] == NULL_ENEMY_ID)
                 {
                     enemy_grid[new_row * MAP_WIDTH + new_col] = enemy_grid[i * MAP_WIDTH + j];
@@ -681,6 +730,34 @@ void calc_player_stats(player* p)
         item_data[p->breastplate].defense +
         item_data[p->greaves].defense +
         item_data[p->shield].defense;
+}
+
+void do_merchant_sequence(player* p)
+{
+    
+    int center_row = MAP_HEIGHT / 2;
+    int q_row = center_row / 2;
+    int center_column = MAP_WIDTH / 2;
+    int q_col = center_column / 2;
+
+    char k = ' ';
+    while (k != 'q' && k != 'Q')
+    {
+        display_center_box(INVENTORY_SCREEN_COLOR);
+        curse_print(center_row - q_row + 1, center_column - STATS_TEXT_OFFSET,
+            "~Merchant~", INVENTORY_SCREEN_COLOR);
+        int bottom_text_offset = 2;
+        attron(COLOR_PAIR(YELLOW_TEXT_COLOR));
+        mvprintw(center_row + q_row - 2, center_column - q_col + bottom_text_offset,
+            "Gold: %d", p->gold);
+        attroff(COLOR_PAIR(YELLOW_TEXT_COLOR));
+        mvprintw(center_row + q_row - 1, center_column - q_col + bottom_text_offset, 
+            "Exit [%c]", 'Q');
+        // bottom_text_offset += 11;
+        // mvprintw(center_row + q_row - 1, center_column - q_col + bottom_text_offset, 
+        //     "Block [%c]", BLOCK_KEY);
+        k = getch();
+    }
 }
 
 bool do_combat_sequence(player* p, int enemy_id, int* enemy_grid)
@@ -1070,6 +1147,7 @@ void setup_ncurses()
     init_pair(YELLOW_TEXT_COLOR, COLOR_YELLOW, COLOR_BLACK);
     init_pair(MAGENTA_TEXT_COLOR, COLOR_MAGENTA, COLOR_BLACK);
     init_pair('!', COLOR_BLACK, COLOR_RED);
+    init_pair(MERCHANT_SYMBOL, COLOR_BLUE, COLOR_YELLOW);
     init_pair(HIGHLIGHT_TEXT_COLOR, COLOR_BLACK, COLOR_WHITE);
     // init_pair('?', COLOR_BLUE, COLOR_GREEN);
 }
@@ -1111,7 +1189,8 @@ bool next_to_open_space(char map[], int row, int column)
     return false;
 }
 
-void write_map_curse(char map[], int* item_grid, int* enemy_grid, bool visibility_grid[])
+void write_map_curse(char map[], int* item_grid, int* enemy_grid, bool visibility_grid[],
+    int merchant_row, int merchant_column)
 {
 
     for (int row = 0; row < MAP_HEIGHT; row++) {
@@ -1130,6 +1209,9 @@ void write_map_curse(char map[], int* item_grid, int* enemy_grid, bool visibilit
 
                     if (enemy_grid[row * MAP_WIDTH + column] != NULL_ENEMY_ID) {
                         curse_put(display_row, column, ENEMY_SYMBOL, ENEMY_SYMBOL);
+                    }
+                    else if (row == merchant_row && column == merchant_column) {
+                        curse_put(display_row, column, MERCHANT_SYMBOL, MERCHANT_SYMBOL);
                     }
                     else if (item_grid[row * MAP_WIDTH + column] != NULL_ITEM_ID) {
                         curse_put(display_row, column, ITEM_SYMBOL, ITEM_SYMBOL);
@@ -1216,5 +1298,12 @@ int calc_damage_done(int attacker_attack, int defender_defense)
             - (rand() % max(defender_defense / 3, 1)), 0);   
 }
 
+void empty_merchant_bag(int* merchant_bag)
+{
+    for (int i = 0; i < MERCHANT_BAG_SIZE; i++)
+    {
+        merchant_bag[i] = NULL_ITEM_ID;
+    }
+}
 
 
